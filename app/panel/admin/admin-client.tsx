@@ -1,0 +1,1046 @@
+"use client"
+
+import { useState } from "react"
+import { PanelTopbar } from "@/components/panel/panel-topbar"
+import { createClient } from "@/lib/supabase/client"
+import { 
+  Users, 
+  Car, 
+  QrCode, 
+  Search, 
+  Trash2, 
+  ExternalLink, 
+  Activity, 
+  Shield, 
+  Sparkles, 
+  AlertCircle,
+  TrendingUp,
+  Smartphone,
+  Monitor,
+  Tablet,
+  X,
+  Edit2
+} from "lucide-react"
+import { cn } from "@/lib/utils"
+
+interface AdminClientProps {
+  initialGalleries: any[]
+  initialVehicles: any[]
+  initialScans: any[]
+}
+
+const VITESLER = ["Manuel", "Otomatik", "Yarı-Otomatik"]
+const YAKITLAR = ["Benzin", "Dizel", "Elektrik", "Hybrid", "LPG"]
+const KASALAR = ["Sedan", "Hatchback", "SUV", "Coupe", "Pickup", "Cabrio", "Station Wagon", "Minivan"]
+
+const inputClass = "w-full bg-af-surface border border-af-border text-af-text placeholder:text-af-text-disabled rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-af-accent transition-colors"
+
+export function AdminClient({ initialGalleries, initialVehicles, initialScans }: AdminClientProps) {
+  const supabase = createClient()
+  const [aktifTab, setAktifTab] = useState<"stats" | "galleries" | "vehicles" | "subscriptions" >("stats")
+  
+  const [galleries, setGalleries] = useState(initialGalleries)
+  const [vehicles, setVehicles] = useState(initialVehicles)
+  const [scans] = useState(initialScans)
+
+  const [galeriArama, setGaleriArama] = useState("")
+  const [aracArama, setAracArama] = useState("")
+  const [aracDurumFiltre, setAracDurumFiltre] = useState("Hepsi")
+
+  const [islemde, setIslemde] = useState<string | null>(null)
+  const [mesaj, setMesaj] = useState<{ tip: "basarili" | "hata"; metin: string } | null>(null)
+
+  // Düzenleme State'leri
+  const [duzenlenenGaleri, setDuzenlenenGaleri] = useState<any | null>(null)
+  const [duzenlenenArac, setDuzenlenenArac] = useState<any | null>(null)
+  const [duzenlemeKaydediliyor, setDuzenlemeKaydediliyor] = useState(false)
+
+  // İstatistikler
+  const totalGalleries = galleries.length
+  const totalVehicles = vehicles.length
+  const totalScans = scans.length
+  const activeVehicles = vehicles.filter(v => v.durum === "Aktif").length
+  const soldVehicles = vehicles.filter(v => v.durum === "Satildi").length
+
+  // Cihaz Dağılımı
+  const mobileScans = scans.filter(s => s.device_type === "mobile").length
+  const desktopScans = scans.filter(s => s.device_type === "desktop").length
+  const tabletScans = scans.filter(s => s.device_type === "tablet").length
+
+  const getVehicleCount = (userId: string) => {
+    return vehicles.filter(v => v.user_id === userId).length
+  }
+
+  const getGalleryName = (userId: string) => {
+    const gal = galleries.find(g => g.user_id === userId)
+    return gal ? gal.galeri_adi : "Bilinmeyen Galeri"
+  }
+
+  // Slug Oluşturucu Helper
+  const generateSlug = (name: string): string => {
+    return name
+      .toLowerCase()
+      .replace(/ğ/g, "g").replace(/ü/g, "u").replace(/ş/g, "s")
+      .replace(/ı/g, "i").replace(/ö/g, "o").replace(/ç/g, "c")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+  }
+
+  // Galeri Düzenleme Kaydet
+  const handleSaveGallery = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!duzenlenenGaleri) return
+
+    setDuzenlemeKaydediliyor(true)
+    setMesaj(null)
+
+    const updatedSlug = generateSlug(duzenlenenGaleri.galeri_adi)
+
+    try {
+      const { data, error } = await supabase
+        .from("galeri_profilleri")
+        .update({
+          galeri_adi: duzenlenenGaleri.galeri_adi,
+          slug: updatedSlug,
+          telefon: duzenlenenGaleri.telefon,
+          whatsapp: duzenlenenGaleri.whatsapp,
+          instagram: duzenlenenGaleri.instagram,
+          website: duzenlenenGaleri.website,
+          adres: duzenlenenGaleri.adres,
+          sehir: duzenlenenGaleri.sehir,
+          calisma_saatleri: duzenlenenGaleri.calisma_saatleri
+        })
+        .eq("user_id", duzenlenenGaleri.user_id)
+        .select()
+
+      if (error) throw error
+      if (!data || data.length === 0) {
+        throw new Error("Bu galerinin sahibi siz değilsiniz veya Supabase RLS (Satır Düzeyinde Güvenlik) politikaları bu güncellemeyi engelliyor. Lütfen SQL politikasını Supabase'de çalıştırın.")
+      }
+
+      setGalleries(prev => prev.map(g => g.user_id === duzenlenenGaleri.user_id ? { ...duzenlenenGaleri, slug: updatedSlug } : g))
+      setMesaj({ tip: "basarili", metin: "Galeri bilgileri başarıyla güncellendi." })
+      setDuzenlenenGaleri(null)
+    } catch (err: any) {
+      console.error(err)
+      setMesaj({ tip: "hata", metin: `Güncelleme başarısız: ${err.message || "Yetki yetersiz veya RLS kısıtlaması var."}` })
+    } finally {
+      setDuzenlemeKaydediliyor(false)
+    }
+  }
+
+  // Araç Düzenleme Kaydet
+  const handleSaveVehicle = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!duzenlenenArac) return
+
+    setDuzenlemeKaydediliyor(true)
+    setMesaj(null)
+
+    try {
+      const { data, error } = await supabase
+        .from("araclar")
+        .update({
+          marka: duzenlenenArac.marka,
+          model: duzenlenenArac.model,
+          yil: parseInt(duzenlenenArac.yil) || new Date().getFullYear(),
+          versiyon: duzenlenenArac.versiyon,
+          renk: duzenlenenArac.renk,
+          motor_hacmi: duzenlenenArac.motor_hacmi ? parseInt(duzenlenenArac.motor_hacmi) : null,
+          motor_gucu: duzenlenenArac.motor_gucu ? parseInt(duzenlenenArac.motor_gucu) : null,
+          vites: duzenlenenArac.vites,
+          yakit: duzenlenenArac.yakit,
+          kasa_tipi: duzenlenenArac.kasa_tipi,
+          km: duzenlenenArac.km ? parseInt(duzenlenenArac.km) : 0,
+          hasar_kaydi: duzenlenenArac.hasar_kaydi,
+          boyali_parca: duzenlenenArac.boyali_parca ? parseInt(duzenlenenArac.boyali_parca) : 0,
+          fiyat: duzenlenenArac.fiyat ? parseFloat(duzenlenenArac.fiyat) : null,
+          fiyat_gizle: duzenlenenArac.fiyat_gizle,
+          pazarlik_var: duzenlenenArac.pazarlik_var,
+          durum: duzenlenenArac.durum
+        })
+        .eq("id", duzenlenenArac.id)
+        .select()
+
+      if (error) throw error
+      if (!data || data.length === 0) {
+        throw new Error("Bu aracın sahibi siz değilsiniz veya Supabase RLS (Satır Düzeyinde Güvenlik) politikaları bu güncellemeyi engelliyor. Lütfen SQL politikasını Supabase'de çalıştırın.")
+      }
+
+      setVehicles(prev => prev.map(v => v.id === duzenlenenArac.id ? duzenlenenArac : v))
+      setMesaj({ tip: "basarili", metin: "Araç bilgileri başarıyla güncellendi." })
+      setDuzenlenenArac(null)
+    } catch (err: any) {
+      console.error(err)
+      setMesaj({ tip: "hata", metin: `Güncelleme başarısız: ${err.message || "Yetki yetersiz veya RLS kısıtlaması var."}` })
+    } finally {
+      setDuzenlemeKaydediliyor(false)
+    }
+  }
+
+  // Abonelik Planı Güncelleme
+  const handleChangePlan = async (userId: string, newPlan: string) => {
+    setIslemde(userId)
+    setMesaj(null)
+
+    try {
+      const { data, error } = await supabase
+        .from("galeri_profilleri")
+        .update({ plan: newPlan })
+        .eq("user_id", userId)
+        .select()
+
+      if (error) throw error
+      if (!data || data.length === 0) {
+        throw new Error("Abonelik planı güncellenemedi. RLS politikaları engellemiş olabilir veya bu galeriyi güncelleme yetkiniz yok.")
+      }
+
+      setGalleries(prev => prev.map(g => g.user_id === userId ? { ...g, plan: newPlan } : g))
+      setMesaj({ tip: "basarili", metin: `Abonelik planı başarıyla "${newPlan}" olarak güncellendi.` })
+    } catch (err: any) {
+      console.error(err)
+      setMesaj({ tip: "hata", metin: `Plan güncellenemedi: ${err.message || "Yetki hatası veya veritabanı RLS engeli."}` })
+    } finally {
+      setIslemde(null)
+    }
+  }
+
+  const handleDeleteVehicle = async (id: string, marka: string, model: string) => {
+    if (!confirm(`"${marka} ${model}" aracını kalıcı olarak silmek istediğinize emin misiniz?`)) return
+    
+    setIslemde(id)
+    setMesaj(null)
+
+    try {
+      const { error } = await supabase
+        .from("araclar")
+        .delete()
+        .eq("id", id)
+
+      if (error) throw error
+
+      setVehicles(prev => prev.filter(v => v.id !== id))
+      setMesaj({ tip: "basarili", metin: "Araç başarıyla sistemden silindi." })
+    } catch (err: any) {
+      console.error(err)
+      setMesaj({ tip: "hata", metin: `Silme başarısız: ${err.message || "Yetki yetersiz veya RLS kısıtlaması var."}` })
+    } finally {
+      setIslemde(null)
+    }
+  }
+
+  const handleDeleteGallery = async (userId: string, galeriAdi: string) => {
+    if (!confirm(`"${galeriAdi}" galerisini ve galeriye ait TÜM araçları sistemden silmek istediğinize emin misiniz?\n\nBU İŞLEM GERİ ALINAMAZ!`)) return
+
+    setIslemde(userId)
+    setMesaj(null)
+
+    try {
+      // 1. Önce araçları sil (foreign key varsa korumak için)
+      await supabase
+        .from("araclar")
+        .delete()
+        .eq("user_id", userId)
+
+      // 2. Galeriyi sil
+      const { error } = await supabase
+        .from("galeri_profilleri")
+        .delete()
+        .eq("user_id", userId)
+
+      if (error) throw error
+
+      setGalleries(prev => prev.filter(g => g.user_id !== userId))
+      setVehicles(prev => prev.filter(v => v.user_id !== userId))
+      setMesaj({ tip: "basarili", metin: "Galeri ve bağlı tüm araçlar sistemden temizlendi." })
+    } catch (err: any) {
+      console.error(err)
+      setMesaj({ tip: "hata", metin: `Silme başarısız: ${err.message || "Yetki yetersiz veya RLS kısıtlaması var."}` })
+    } finally {
+      setIslemde(null)
+    }
+  }
+
+  // Arama filtreleri
+  const filtrelenmişGaleriler = galleries.filter(g => 
+    g.galeri_adi?.toLowerCase().includes(galeriArama.toLowerCase()) ||
+    g.sehir?.toLowerCase().includes(galeriArama.toLowerCase()) ||
+    g.adres?.toLowerCase().includes(galeriArama.toLowerCase())
+  )
+
+  const filtrelenmişAraclar = vehicles.filter(v => {
+    const matchArama = 
+      v.marka?.toLowerCase().includes(aracArama.toLowerCase()) ||
+      v.model?.toLowerCase().includes(aracArama.toLowerCase()) ||
+      v.versiyon?.toLowerCase().includes(aracArama.toLowerCase())
+    
+    const matchDurum = aracDurumFiltre === "Hepsi" || v.durum === aracDurumFiltre
+    
+    return matchArama && matchDurum
+  })
+
+  return (
+    <div className="flex flex-col min-h-screen bg-af-bg text-af-text pb-12">
+      <PanelTopbar baslik="Süper Yönetici Paneli" aciklama="AutoFlow platformundaki tüm kaynakları ve galerileri denetleyin" />
+      
+      <main className="flex-1 p-6 max-w-6xl w-full mx-auto space-y-6">
+        
+        {/* Hata veya Başarı Bildirimi */}
+        {mesaj && (
+          <div className={cn(
+            "flex items-center gap-3 p-4 rounded-2xl border text-sm animate-in fade-in duration-300",
+            mesaj.tip === "basarili" 
+              ? "bg-af-success/10 border-af-success/20 text-af-success" 
+              : "bg-af-error/10 border-af-error/20 text-af-error"
+          )}>
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            <p>{mesaj.metin}</p>
+          </div>
+        )}
+
+        {/* TABS SELECTOR */}
+        <div className="flex gap-2 p-1.5 bg-af-surface rounded-2xl border border-af-border max-w-2xl">
+          {[
+            { id: "stats", label: "Genel Analiz", icon: Activity },
+            { id: "galleries", label: "Galeriler", icon: Users },
+            { id: "vehicles", label: "Tüm Araçlar", icon: Car },
+            { id: "subscriptions", label: "Abonelikler", icon: Sparkles },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => { setAktifTab(tab.id as any); setMesaj(null) }}
+              className={cn(
+                "flex-1 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all",
+                aktifTab === tab.id
+                  ? "bg-af-accent text-white shadow-lg shadow-af-accent/15"
+                  : "text-af-text-secondary hover:text-white hover:bg-af-surface-2"
+              )}
+            >
+              <tab.icon className="w-4 h-4" />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* TAB 1: GENEL ANALİZ */}
+        {aktifTab === "stats" && (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            {/* Hızlı Kartlar */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-af-surface border border-af-border rounded-2xl p-5 relative overflow-hidden group">
+                <div className="absolute right-4 top-4 w-12 h-12 rounded-xl bg-af-accent/10 flex items-center justify-center text-af-accent group-hover:scale-110 transition-transform">
+                  <Users className="w-5 h-5" />
+                </div>
+                <p className="text-af-text-secondary text-sm">Kayıtlı Galeri</p>
+                <h3 className="text-3xl font-black text-white mt-1.5">{totalGalleries}</h3>
+                <p className="text-xs text-af-text-disabled mt-2">Toplam aktif bayi/üye sayısı</p>
+              </div>
+
+              <div className="bg-af-surface border border-af-border rounded-2xl p-5 relative overflow-hidden group">
+                <div className="absolute right-4 top-4 w-12 h-12 rounded-xl bg-af-info/10 flex items-center justify-center text-af-info group-hover:scale-110 transition-transform">
+                  <Car className="w-5 h-5" />
+                </div>
+                <p className="text-af-text-secondary text-sm">Platform Araç Sayısı</p>
+                <h3 className="text-3xl font-black text-white mt-1.5">{totalVehicles}</h3>
+                <p className="text-xs text-af-text-disabled mt-2">{activeVehicles} Satışta · {soldVehicles} Satılan</p>
+              </div>
+
+              <div className="bg-af-surface border border-af-border rounded-2xl p-5 relative overflow-hidden group">
+                <div className="absolute right-4 top-4 w-12 h-12 rounded-xl bg-af-success/10 flex items-center justify-center text-af-success group-hover:scale-110 transition-transform">
+                  <QrCode className="w-5 h-5" />
+                </div>
+                <p className="text-af-text-secondary text-sm">Toplam QR Okutma</p>
+                <h3 className="text-3xl font-black text-white mt-1.5">{totalScans}</h3>
+                <p className="text-xs text-af-text-disabled mt-2">QR etiketlerinden gelen trafik</p>
+              </div>
+
+              <div className="bg-af-surface border border-af-border rounded-2xl p-5 relative overflow-hidden group">
+                <div className="absolute right-4 top-4 w-12 h-12 rounded-xl bg-af-accent-active/10 flex items-center justify-center text-af-accent-active group-hover:scale-110 transition-transform">
+                  <TrendingUp className="w-5 h-5" />
+                </div>
+                <p className="text-af-text-secondary text-sm">Ort. Araç / Galeri</p>
+                <h3 className="text-3xl font-black text-white mt-1.5">
+                  {totalGalleries > 0 ? (totalVehicles / totalGalleries).toFixed(1) : "0"}
+                </h3>
+                <p className="text-xs text-af-text-disabled mt-2">Bayi başına ortalama ilan</p>
+              </div>
+            </div>
+
+            {/* Ekstra Analiz Kutuları */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Cihaz Dağılımı */}
+              <div className="bg-af-surface border border-af-border rounded-2xl p-6">
+                <h4 className="font-bold text-white text-base mb-4">Müşteri Cihaz Dağılımı (QR Tarama)</h4>
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex justify-between text-sm mb-1.5">
+                      <span className="flex items-center gap-2 text-af-text-secondary">
+                        <Smartphone className="w-4 h-4 text-af-accent" /> Mobil Cihazlar
+                      </span>
+                      <span className="font-bold text-white">
+                        {totalScans > 0 ? `${((mobileScans / totalScans) * 100).toFixed(0)}%` : "0%"} ({mobileScans})
+                      </span>
+                    </div>
+                    <div className="w-full bg-af-surface-2 rounded-full h-2">
+                      <div className="bg-af-accent h-2 rounded-full" style={{ width: totalScans > 0 ? `${(mobileScans / totalScans) * 100}%` : "0%" }} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-sm mb-1.5">
+                      <span className="flex items-center gap-2 text-af-text-secondary">
+                        <Monitor className="w-4 h-4 text-af-info" /> Masaüstü / PC
+                      </span>
+                      <span className="font-bold text-white">
+                        {totalScans > 0 ? `${((desktopScans / totalScans) * 100).toFixed(0)}%` : "0%"} ({desktopScans})
+                      </span>
+                    </div>
+                    <div className="w-full bg-af-surface-2 rounded-full h-2">
+                      <div className="bg-af-info h-2 rounded-full" style={{ width: totalScans > 0 ? `${(desktopScans / totalScans) * 100}%` : "0%" }} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-sm mb-1.5">
+                      <span className="flex items-center gap-2 text-af-text-secondary">
+                        <Tablet className="w-4 h-4 text-af-success" /> Tablet
+                      </span>
+                      <span className="font-bold text-white">
+                        {totalScans > 0 ? `${((tabletScans / totalScans) * 100).toFixed(0)}%` : "0%"} ({tabletScans})
+                      </span>
+                    </div>
+                    <div className="w-full bg-af-surface-2 rounded-full h-2">
+                      <div className="bg-af-success h-2 rounded-full" style={{ width: totalScans > 0 ? `${(tabletScans / totalScans) * 100}%` : "0%" }} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Son Hareketler logu */}
+              <div className="bg-af-surface border border-af-border rounded-2xl p-6">
+                <h4 className="font-bold text-white text-base mb-4">Son QR Okutma Hareketleri</h4>
+                {scans.length === 0 ? (
+                  <p className="text-af-text-disabled text-sm text-center py-8">Henüz tarama hareketi yok.</p>
+                ) : (
+                  <div className="space-y-3 max-h-[190px] overflow-y-auto pr-1">
+                    {scans.slice(0, 5).map((scan, index) => (
+                      <div key={index} className="flex justify-between items-center bg-af-surface-2/40 p-2.5 rounded-xl border border-af-border/60">
+                        <div>
+                          <p className="text-xs font-semibold text-white">Tarama Gerçekleşti</p>
+                          <p className="text-[10px] text-af-text-disabled">Cihaz: {scan.device_type === "mobile" ? "Mobil" : scan.device_type === "tablet" ? "Tablet" : "Masaüstü"}</p>
+                        </div>
+                        <span className="text-[10px] text-af-text-disabled bg-af-surface border border-af-border px-2 py-0.5 rounded-md">
+                          {new Date(scan.created_at).toLocaleTimeString("tr-TR", { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 2: GALERİLER YÖNETİMİ */}
+        {aktifTab === "galleries" && (
+          <div className="space-y-4 animate-in fade-in duration-300">
+            {/* Filtre ve Arama */}
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-af-text-disabled" />
+              <input
+                type="text"
+                placeholder="Galeri adı, şehir veya adres ara..."
+                className="w-full bg-af-surface border border-af-border text-af-text rounded-2xl pl-12 pr-4 py-3 text-sm focus:outline-none focus:border-af-accent transition-colors"
+                value={galeriArama}
+                onChange={(e) => setGaleriArama(e.target.value)}
+              />
+            </div>
+
+            {/* Liste */}
+            <div className="bg-af-surface border border-af-border rounded-2xl overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[700px]">
+                <thead>
+                  <tr className="border-b border-af-border text-af-text-disabled text-xs font-semibold uppercase bg-af-surface-2/30">
+                    <th className="p-4">Logo / İsim</th>
+                    <th className="p-4">Şehir / Konum</th>
+                    <th className="p-4">Telefon</th>
+                    <th className="p-4 text-center">İlan Sayısı</th>
+                    <th className="p-4 text-right">İşlemler</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-af-border text-sm">
+                  {filtrelenmişGaleriler.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="p-8 text-center text-af-text-disabled">Arama kriterine uygun galeri bulunamadı.</td>
+                    </tr>
+                  ) : (
+                    filtrelenmişGaleriler.map((gal) => {
+                      const vCount = getVehicleCount(gal.user_id)
+                      const isSelf = islemde === gal.user_id
+                      
+                      return (
+                        <tr key={gal.user_id} className="hover:bg-af-surface-2/10 transition-colors">
+                          <td className="p-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 rounded-lg bg-af-accent flex items-center justify-center text-white font-black text-sm">
+                                {gal.galeri_adi ? gal.galeri_adi.substring(0, 2).toUpperCase() : "G"}
+                              </div>
+                              <div>
+                                <p className="font-bold text-white">{gal.galeri_adi || "İsimsiz Galeri"}</p>
+                                <p className="text-[10px] text-af-text-disabled">slug: {gal.slug}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-4 text-af-text-secondary">{gal.sehir || "—"}</td>
+                          <td className="p-4 text-af-text-secondary">{gal.telefon || "—"}</td>
+                          <td className="p-4 text-center font-semibold text-white">{vCount}</td>
+                          <td className="p-4 text-right space-x-1.5">
+                            <a 
+                              href={`/galeri/${gal.slug}`} 
+                              target="_blank" 
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-xs bg-af-surface-2 hover:bg-af-border border border-af-border hover:text-white px-2.5 py-1.5 rounded-lg text-af-text-secondary transition-colors"
+                            >
+                              Görüntüle <ExternalLink className="w-3 h-3" />
+                            </a>
+                            <button
+                              onClick={() => setDuzenlenenGaleri({ ...gal })}
+                              className="inline-flex items-center gap-1 text-xs bg-af-accent/10 hover:bg-af-accent/20 border border-af-accent/20 text-af-accent px-2.5 py-1.5 rounded-lg transition-colors"
+                            >
+                              Düzenle <Edit2 className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteGallery(gal.user_id, gal.galeri_adi)}
+                              disabled={isSelf}
+                              className="inline-flex items-center gap-1 text-xs bg-af-error/10 hover:bg-af-error/20 border border-af-error/20 text-af-error px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                            >
+                              {isSelf ? "Siliniyor..." : "Galeriyi Sil"}
+                              {!isSelf && <Trash2 className="w-3 h-3" />}
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: TÜM ARAÇLAR YÖNETİMİ */}
+        {aktifTab === "vehicles" && (
+          <div className="space-y-4 animate-in fade-in duration-300">
+            {/* Filtre ve Arama çubuğu */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="relative sm:col-span-2">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-af-text-disabled" />
+                <input
+                  type="text"
+                  placeholder="Araç marka, model veya versiyon ara..."
+                  className="w-full bg-af-surface border border-af-border text-af-text rounded-2xl pl-12 pr-4 py-3 text-sm focus:outline-none focus:border-af-accent transition-colors"
+                  value={aracArama}
+                  onChange={(e) => setAracArama(e.target.value)}
+                />
+              </div>
+
+              <select
+                className="bg-af-surface border border-af-border text-af-text rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-af-accent cursor-pointer"
+                value={aracDurumFiltre}
+                onChange={(e) => setAracDurumFiltre(e.target.value)}
+              >
+                <option value="Hepsi">Tüm Durumlar</option>
+                <option value="Aktif">Satışta (Aktif)</option>
+                <option value="Satildi">Satıldı</option>
+                <option value="Pasif">Pasif</option>
+              </select>
+            </div>
+
+            {/* Liste */}
+            <div className="bg-af-surface border border-af-border rounded-2xl overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[700px]">
+                <thead>
+                  <tr className="border-b border-af-border text-af-text-disabled text-xs font-semibold uppercase bg-af-surface-2/30">
+                    <th className="p-4">Görsel / Araç</th>
+                    <th className="p-4">Sahibi Galeri</th>
+                    <th className="p-4">Fiyat</th>
+                    <th className="p-4">Durum</th>
+                    <th className="p-4 text-right">İşlemler</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-af-border text-sm">
+                  {filtrelenmişAraclar.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="p-8 text-center text-af-text-disabled">Arama kriterine uygun araç bulunamadı.</td>
+                    </tr>
+                  ) : (
+                    filtrelenmişAraclar.map((arac) => {
+                      const isSelf = islemde === arac.id
+                      const coverFoto = arac.fotograflar?.[0] || "/placeholder-car.png"
+
+                      return (
+                        <tr key={arac.id} className="hover:bg-af-surface-2/10 transition-colors">
+                          <td className="p-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-16 h-10 rounded-lg overflow-hidden bg-af-surface-2 border border-af-border flex-shrink-0">
+                                <img src={coverFoto} alt="" className="w-full h-full object-cover" />
+                              </div>
+                              <div>
+                                <p className="font-bold text-white">{arac.yil} {arac.marka} {arac.model}</p>
+                                <p className="text-[10px] text-af-text-disabled">{arac.versiyon || "—"}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-4 text-af-text-secondary">{getGalleryName(arac.user_id)}</td>
+                          <td className="p-4 font-bold text-white">
+                            {arac.fiyat_gizle ? "Fiyat Gizli" : arac.fiyat ? `₺${Number(arac.fiyat).toLocaleString("tr-TR")}` : "—"}
+                          </td>
+                          <td className="p-4">
+                            <span className={cn(
+                              "text-xs px-2.5 py-0.5 rounded-full border font-medium",
+                              arac.durum === "Aktif" && "bg-af-success/10 border-af-success/20 text-af-success",
+                              arac.durum === "Satildi" && "bg-af-error/10 border-af-error/20 text-af-error",
+                              arac.durum === "Pasif" && "bg-af-surface-2 border-af-border text-af-text-secondary"
+                            )}>
+                              {arac.durum === "Aktif" ? "Satışta" : arac.durum === "Satildi" ? "Satıldı" : "Pasif"}
+                            </span>
+                          </td>
+                          <td className="p-4 text-right space-x-1.5">
+                            <a 
+                              href={`/arac/${arac.id}`} 
+                              target="_blank" 
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-xs bg-af-surface-2 hover:bg-af-border border border-af-border hover:text-white px-2.5 py-1.5 rounded-lg text-af-text-secondary transition-colors"
+                            >
+                              Sayfa Git <ExternalLink className="w-3 h-3" />
+                            </a>
+                            <button
+                              onClick={() => setDuzenlenenArac({ ...arac })}
+                              className="inline-flex items-center gap-1 text-xs bg-af-accent/10 hover:bg-af-accent/20 border border-af-accent/20 text-af-accent px-2.5 py-1.5 rounded-lg transition-colors"
+                            >
+                              Düzenle <Edit2 className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteVehicle(arac.id, arac.marka, arac.model)}
+                              disabled={isSelf}
+                              className="inline-flex items-center gap-1 text-xs bg-af-error/10 hover:bg-af-error/20 border border-af-error/20 text-af-error px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                            >
+                              {isSelf ? "Siliniyor..." : "Aracı Sil"}
+                              {!isSelf && <Trash2 className="w-3 h-3" />}
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: ABONELİKLER */}
+        {aktifTab === "subscriptions" && (
+          <div className="space-y-4 animate-in fade-in duration-300">
+            <div className="bg-af-accent/10 border border-af-accent/20 rounded-2xl p-4 text-sm text-af-accent flex items-start gap-3">
+              <Shield className="w-5 h-5 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold">Abonelik Yönetim Sistemi</p>
+                <p className="text-af-text-secondary text-xs mt-0.5">
+                  Galerilerin aktif üyelik planlarını değiştirebilirsiniz. Değişiklikler veritabanına anında yansır ve galeri sahipleri kendi panellerinde anlık olarak güncel limitlerini görür.
+                </p>
+              </div>
+            </div>
+
+            {/* Liste */}
+            <div className="bg-af-surface border border-af-border rounded-2xl overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[700px]">
+                <thead>
+                  <tr className="border-b border-af-border text-af-text-disabled text-xs font-semibold uppercase bg-af-surface-2/30">
+                    <th className="p-4">Galeri</th>
+                    <th className="p-4">Mevcut Plan</th>
+                    <th className="p-4 text-center">İlan Sayısı</th>
+                    <th className="p-4">İlan Limiti</th>
+                    <th className="p-4">Abonelik Ücreti</th>
+                    <th className="p-4 text-right">Plan Değiştir</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-af-border text-sm">
+                  {galleries.map((gal) => {
+                    const isSelf = islemde === gal.user_id
+                    const currentPlan = gal.plan || "Essential"
+
+                    return (
+                      <tr key={gal.user_id} className="hover:bg-af-surface-2/10 transition-colors">
+                        <td className="p-4">
+                          <p className="font-bold text-white">{gal.galeri_adi || "İsimsiz Galeri"}</p>
+                          <p className="text-[10px] text-af-text-disabled">{gal.slug}</p>
+                        </td>
+                        <td className="p-4">
+                          <span className={cn(
+                            "inline-flex items-center gap-1.5 text-xs px-2.5 py-0.5 rounded-full border font-semibold",
+                            currentPlan === "Elite" && "text-af-accent bg-af-accent/10 border-af-accent/20",
+                            currentPlan === "Professional" && "text-af-info bg-af-info/10 border-af-info/20",
+                            currentPlan === "Essential" && "text-af-text-secondary bg-af-surface-2 border-af-border"
+                          )}>
+                            {currentPlan === "Elite" ? "Elite" : currentPlan === "Professional" ? "Professional" : "Essential"}
+                          </span>
+                        </td>
+                        <td className="p-4 text-center font-bold text-white">
+                          {getVehicleCount(gal.user_id)}
+                        </td>
+                        <td className="p-4 text-af-text-secondary">
+                          {currentPlan === "Elite" ? "Sınırsız İlan" : currentPlan === "Professional" ? "Maks. 10 İlan" : "Araç Başı"}
+                        </td>
+                        <td className="p-4 text-white font-bold">
+                          {currentPlan === "Elite" ? "5.000 ₺ / Ay" : currentPlan === "Professional" ? "3.000 ₺ / Ay" : "200 ₺ / İlan"}
+                        </td>
+                        <td className="p-4 text-right">
+                          <select
+                            value={currentPlan}
+                            disabled={isSelf}
+                            onChange={(e) => handleChangePlan(gal.user_id, e.target.value)}
+                            className="bg-af-surface-2 border border-af-border text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors focus:outline-none focus:border-af-accent cursor-pointer disabled:opacity-50"
+                          >
+                            <option value="Essential">Essential (200₺ / İlan)</option>
+                            <option value="Professional">Professional (3.000₺ / 10 İlan)</option>
+                            <option value="Elite">Elite (5.000₺ / Sınırsız)</option>
+                          </select>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+      </main>
+
+      {/* GALERİ DÜZENLEME MODAL */}
+      {duzenlenenGaleri && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-af-surface border border-af-border rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between p-5 border-b border-af-border">
+              <h3 className="font-bold text-white text-lg">Galeri Düzenle: {duzenlenenGaleri.galeri_adi}</h3>
+              <button 
+                type="button" 
+                onClick={() => setDuzenlenenGaleri(null)} 
+                className="text-af-text-disabled hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveGallery} className="p-6 overflow-y-auto space-y-4 flex-1">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-af-text-secondary text-xs font-semibold uppercase mb-1.5">Galeri Adı</label>
+                  <input
+                    type="text"
+                    required
+                    className={inputClass}
+                    value={duzenlenenGaleri.galeri_adi || ""}
+                    onChange={(e) => setDuzenlenenGaleri({ ...duzenlenenGaleri, galeri_adi: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-af-text-secondary text-xs font-semibold uppercase mb-1.5">Telefon</label>
+                  <input
+                    type="text"
+                    className={inputClass}
+                    value={duzenlenenGaleri.telefon || ""}
+                    onChange={(e) => setDuzenlenenGaleri({ ...duzenlenenGaleri, telefon: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-af-text-secondary text-xs font-semibold uppercase mb-1.5">WhatsApp</label>
+                  <input
+                    type="text"
+                    className={inputClass}
+                    value={duzenlenenGaleri.whatsapp || ""}
+                    onChange={(e) => setDuzenlenenGaleri({ ...duzenlenenGaleri, whatsapp: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-af-text-secondary text-xs font-semibold uppercase mb-1.5">Instagram</label>
+                  <input
+                    type="text"
+                    className={inputClass}
+                    value={duzenlenenGaleri.instagram || ""}
+                    onChange={(e) => setDuzenlenenGaleri({ ...duzenlenenGaleri, instagram: e.target.value })}
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-af-text-secondary text-xs font-semibold uppercase mb-1.5">Web Sitesi</label>
+                  <input
+                    type="text"
+                    className={inputClass}
+                    value={duzenlenenGaleri.website || ""}
+                    onChange={(e) => setDuzenlenenGaleri({ ...duzenlenenGaleri, website: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-af-text-secondary text-xs font-semibold uppercase mb-1.5">İlyeri Adresi</label>
+                  <input
+                    type="text"
+                    className={inputClass}
+                    value={duzenlenenGaleri.adres || ""}
+                    onChange={(e) => setDuzenlenenGaleri({ ...duzenlenenGaleri, adres: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-af-text-secondary text-xs font-semibold uppercase mb-1.5">Şehir</label>
+                  <input
+                    type="text"
+                    className={inputClass}
+                    value={duzenlenenGaleri.sehir || ""}
+                    onChange={(e) => setDuzenlenenGaleri({ ...duzenlenenGaleri, sehir: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-af-text-secondary text-xs font-semibold uppercase mb-1.5">Hafta İçi Çalışma Saatleri</label>
+                  <input
+                    type="text"
+                    className={inputClass}
+                    value={duzenlenenGaleri.calisma_saatleri?.hafta_ici || ""}
+                    onChange={(e) => setDuzenlenenGaleri({
+                      ...duzenlenenGaleri,
+                      calisma_saatleri: {
+                        ...duzenlenenGaleri.calisma_saatleri,
+                        hafta_ici: e.target.value
+                      }
+                    })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-af-text-secondary text-xs font-semibold uppercase mb-1.5">Hafta Sonu Çalışma Saatleri</label>
+                  <input
+                    type="text"
+                    className={inputClass}
+                    value={duzenlenenGaleri.calisma_saatleri?.hafta_sonu || ""}
+                    onChange={(e) => setDuzenlenenGaleri({
+                      ...duzenlenenGaleri,
+                      calisma_saatleri: {
+                        ...duzenlenenGaleri.calisma_saatleri,
+                        hafta_sonu: e.target.value
+                      }
+                    })}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-4 border-t border-af-border mt-4">
+                <button
+                  type="button"
+                  onClick={() => setDuzenlenenGaleri(null)}
+                  className="bg-af-surface hover:bg-af-surface-2 text-af-text-secondary px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors border border-af-border"
+                >
+                  Vazgeç
+                </button>
+                <button
+                  type="submit"
+                  disabled={duzenlemeKaydediliyor}
+                  className="bg-af-accent hover:bg-af-accent-hover text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors flex items-center gap-2 disabled:opacity-60"
+                >
+                  {duzenlemeKaydediliyor ? "Kaydediliyor..." : "Değişiklikleri Kaydet"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ARAÇ DÜZENLEME MODAL */}
+      {duzenlenenArac && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-af-surface border border-af-border rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between p-5 border-b border-af-border">
+              <h3 className="font-bold text-white text-lg">Araç Düzenle: {duzenlenenArac.marka} {duzenlenenArac.model}</h3>
+              <button 
+                type="button" 
+                onClick={() => setDuzenlenenArac(null)} 
+                className="text-af-text-disabled hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveVehicle} className="p-6 overflow-y-auto space-y-4 flex-1">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-af-text-secondary text-xs font-semibold uppercase mb-1.5">Marka</label>
+                  <input
+                    type="text"
+                    required
+                    className={inputClass}
+                    value={duzenlenenArac.marka || ""}
+                    onChange={(e) => setDuzenlenenArac({ ...duzenlenenArac, marka: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-af-text-secondary text-xs font-semibold uppercase mb-1.5">Model</label>
+                  <input
+                    type="text"
+                    required
+                    className={inputClass}
+                    value={duzenlenenArac.model || ""}
+                    onChange={(e) => setDuzenlenenArac({ ...duzenlenenArac, model: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-af-text-secondary text-xs font-semibold uppercase mb-1.5">Yıl</label>
+                  <input
+                    type="number"
+                    required
+                    className={inputClass}
+                    value={duzenlenenArac.yil || ""}
+                    onChange={(e) => setDuzenlenenArac({ ...duzenlenenArac, yil: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-af-text-secondary text-xs font-semibold uppercase mb-1.5">Versiyon / Donanım</label>
+                  <input
+                    type="text"
+                    className={inputClass}
+                    value={duzenlenenArac.versiyon || ""}
+                    onChange={(e) => setDuzenlenenArac({ ...duzenlenenArac, versiyon: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-af-text-secondary text-xs font-semibold uppercase mb-1.5">Fiyat (₺)</label>
+                  <input
+                    type="number"
+                    className={inputClass}
+                    value={duzenlenenArac.fiyat || ""}
+                    onChange={(e) => setDuzenlenenArac({ ...duzenlenenArac, fiyat: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-af-text-secondary text-xs font-semibold uppercase mb-1.5">Kilometre</label>
+                  <input
+                    type="number"
+                    className={inputClass}
+                    value={duzenlenenArac.km || ""}
+                    onChange={(e) => setDuzenlenenArac({ ...duzenlenenArac, km: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-af-text-secondary text-xs font-semibold uppercase mb-1.5">Renk</label>
+                  <input
+                    type="text"
+                    className={inputClass}
+                    value={duzenlenenArac.renk || ""}
+                    onChange={(e) => setDuzenlenenArac({ ...duzenlenenArac, renk: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-af-text-secondary text-xs font-semibold uppercase mb-1.5">Boyalı Parça Sayısı</label>
+                  <input
+                    type="number"
+                    className={inputClass}
+                    value={duzenlenenArac.boyali_parca || 0}
+                    onChange={(e) => setDuzenlenenArac({ ...duzenlenenArac, boyali_parca: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-af-text-secondary text-xs font-semibold uppercase mb-1.5">Vites</label>
+                  <select
+                    className="w-full bg-af-surface border border-af-border text-af-text rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-af-accent cursor-pointer"
+                    value={duzenlenenArac.vites || ""}
+                    onChange={(e) => setDuzenlenenArac({ ...duzenlenenArac, vites: e.target.value })}
+                  >
+                    {VITESLER.map(v => <option key={v} value={v}>{v}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-af-text-secondary text-xs font-semibold uppercase mb-1.5">Yakıt</label>
+                  <select
+                    className="w-full bg-af-surface border border-af-border text-af-text rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-af-accent cursor-pointer"
+                    value={duzenlenenArac.yakit || ""}
+                    onChange={(e) => setDuzenlenenArac({ ...duzenlenenArac, yakit: e.target.value })}
+                  >
+                    {YAKITLAR.map(y => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-af-text-secondary text-xs font-semibold uppercase mb-1.5">Kasa Tipi</label>
+                  <select
+                    className="w-full bg-af-surface border border-af-border text-af-text rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-af-accent cursor-pointer"
+                    value={duzenlenenArac.kasa_tipi || ""}
+                    onChange={(e) => setDuzenlenenArac({ ...duzenlenenArac, kasa_tipi: e.target.value })}
+                  >
+                    {KASALAR.map(k => <option key={k} value={k}>{k}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-af-text-secondary text-xs font-semibold uppercase mb-1.5">Araç Durumu</label>
+                  <select
+                    className="w-full bg-af-surface border border-af-border text-af-text rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-af-accent cursor-pointer"
+                    value={duzenlenenArac.durum || ""}
+                    onChange={(e) => setDuzenlenenArac({ ...duzenlenenArac, durum: e.target.value })}
+                  >
+                    <option value="Aktif">Satışta (Aktif)</option>
+                    <option value="Satildi">Satıldı</option>
+                    <option value="Pasif">Pasif</option>
+                  </select>
+                </div>
+                <div className="flex items-center gap-3 bg-af-surface-2/40 border border-af-border/60 p-4 rounded-xl md:col-span-2">
+                  <input
+                    type="checkbox"
+                    id="hasar_kaydi"
+                    className="w-4 h-4 rounded accent-af-accent"
+                    checked={duzenlenenArac.hasar_kaydi || false}
+                    onChange={(e) => setDuzenlenenArac({ ...duzenlenenArac, hasar_kaydi: e.target.checked })}
+                  />
+                  <label htmlFor="hasar_kaydi" className="text-sm font-medium text-white cursor-pointer select-none">
+                    Hasar Kaydı Var
+                  </label>
+                </div>
+                <div className="flex items-center gap-3 bg-af-surface-2/40 border border-af-border/60 p-4 rounded-xl md:col-span-2">
+                  <input
+                    type="checkbox"
+                    id="fiyat_gizle"
+                    className="w-4 h-4 rounded accent-af-accent"
+                    checked={duzenlenenArac.fiyat_gizle || false}
+                    onChange={(e) => setDuzenlenenArac({ ...duzenlenenArac, fiyat_gizle: e.target.checked })}
+                  />
+                  <label htmlFor="fiyat_gizle" className="text-sm font-medium text-white cursor-pointer select-none font-semibold">
+                    Fiyatı Gizle (Müşteriye "Fiyat için arayın" gösterilir)
+                  </label>
+                </div>
+                <div className="flex items-center gap-3 bg-af-surface-2/40 border border-af-border/60 p-4 rounded-xl md:col-span-2">
+                  <input
+                    type="checkbox"
+                    id="pazarlik_var"
+                    className="w-4 h-4 rounded accent-af-accent"
+                    checked={duzenlenenArac.pazarlik_var || false}
+                    onChange={(e) => setDuzenlenenArac({ ...duzenlenenArac, pazarlik_var: e.target.checked })}
+                  />
+                  <label htmlFor="pazarlik_var" className="text-sm font-medium text-white cursor-pointer select-none">
+                    Pazarlığa Açık
+                  </label>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-4 border-t border-af-border mt-4">
+                <button
+                  type="button"
+                  onClick={() => setDuzenlenenArac(null)}
+                  className="bg-af-surface hover:bg-af-surface-2 text-af-text-secondary px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors border border-af-border"
+                >
+                  Vazgeç
+                </button>
+                <button
+                  type="submit"
+                  disabled={duzenlemeKaydediliyor}
+                  className="bg-af-accent hover:bg-af-accent-hover text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors flex items-center gap-2 disabled:opacity-60"
+                >
+                  {duzenlemeKaydediliyor ? "Kaydediliyor..." : "Değişiklikleri Kaydet"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+    </div>
+  )
+}

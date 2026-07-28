@@ -1,0 +1,249 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { ArrowLeft, ChevronDown, MapPin, Clock, ExternalLink, QrCode } from "lucide-react"
+import Link from "next/link"
+import { FotografGalerisi } from "@/components/autoflow/fotograf-galerisi"
+import { DurumRozeti } from "@/components/autoflow/durum-rozeti"
+import { IletisimButonlari } from "@/components/autoflow/iletisim-butonlari"
+import { formatFiyat, formatKm, getOzellikIcon } from "@/lib/arac-helpers"
+import { Arac, Galeri } from "@/lib/types"
+import { cn } from "@/lib/utils"
+import { createClient } from "@/lib/supabase/client"
+
+interface AracDetayClientProps {
+  arac: Arac
+  galeri: Galeri
+}
+
+const SPEC_SECTIONS = [
+  {
+    baslik: "Teknik Özellikler",
+    items: (a: Arac) => [
+      { label: "Motor Hacmi", value: a.motor_hacmi ? `${a.motor_hacmi} cc` : "—" },
+      { label: "Motor Gücü", value: a.motor_gucu ? `${a.motor_gucu} HP` : "—" },
+      { label: "Vites Tipi", value: a.vites },
+      { label: "Yakıt Tipi", value: a.yakit },
+      { label: "Kasa Tipi", value: a.kasa_tipi },
+      { label: "Kilometre", value: formatKm(a.km) },
+    ],
+  },
+  {
+    baslik: "Durum Bilgisi",
+    items: (a: Arac) => [
+      { label: "Hasar Kaydı", value: a.hasar_kaydi ? "Var ⚠️" : "Yok ✅" },
+      { label: "Boyalı Parça", value: a.boyali_parca === 0 ? "Yok ✅" : `${a.boyali_parca} parça` },
+      { label: "Araç Durumu", value: a.durum === "Aktif" ? "Satışta" : a.durum === "Satildi" ? "Satıldı" : "Pasif" },
+      { label: "Renk", value: a.renk },
+    ],
+  },
+]
+
+export function AracDetayClient({ arac, galeri }: AracDetayClientProps) {
+  const [specsOpen, setSpecsOpen] = useState(false)
+  const [eventId, setEventId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const registerScan = async () => {
+      try {
+        const uAgent = navigator.userAgent
+        let deviceType: "mobile" | "tablet" | "desktop" = "desktop"
+        if (/mobi/i.test(uAgent)) {
+          deviceType = "mobile"
+        } else if (/ipad|tablet/i.test(uAgent)) {
+          deviceType = "tablet"
+        }
+
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(arac.id)
+        if (!isUuid) return
+
+        const supabase = createClient()
+        const { data, error } = await supabase
+          .from("qr_events")
+          .insert({
+            arac_id: arac.id,
+            device_type: deviceType,
+            whatsapp_tiklamasi: false,
+          })
+          .select("id")
+          .single()
+
+        if (data && !error) {
+          setEventId(data.id)
+        } else if (error) {
+          console.error("QR okutma loglanamadı:", error)
+        }
+      } catch (err) {
+        console.error("QR okutma kaydı sırasında hata:", err)
+      }
+    }
+
+    registerScan()
+  }, [arac.id])
+
+  const initials = galeri.ad
+    ? galeri.ad
+        .split(" ")
+        .map((w) => w[0])
+        .slice(0, 2)
+        .join("")
+        .toUpperCase()
+    : "G"
+
+  return (
+    <div className="min-h-screen bg-af-bg pb-28">
+      {/* Header */}
+      <div className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-af-bg/95 backdrop-blur-md border-b border-af-border">
+        <Link href={`/galeri/${galeri.slug}`} className="w-9 h-9 rounded-full bg-af-surface border border-af-border flex items-center justify-center hover:border-af-accent/40 transition-colors">
+          <ArrowLeft className="w-4 h-4 text-af-text-secondary" />
+        </Link>
+        <span className="font-semibold text-af-text text-sm truncate max-w-[200px]">{arac.marka} {arac.model}</span>
+        <Link href={`/panel/qr?arac=${arac.id}`} className="w-9 h-9 rounded-full bg-af-surface border border-af-border flex items-center justify-center hover:border-af-accent/40 transition-colors">
+          <QrCode className="w-4 h-4 text-af-text-secondary" />
+        </Link>
+      </div>
+
+      <div className="max-w-lg mx-auto">
+        {/* FOTOĞRAF */}
+        <div className="relative">
+          <FotografGalerisi fotograflar={arac.fotograflar} altText={`${arac.marka} ${arac.model}`} />
+          {arac.durum === "Satildi" && (
+            <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10">
+              <div className="text-center">
+                <span className="text-white font-black text-4xl tracking-[0.2em] border-4 border-white px-6 py-2 rounded-lg inline-block rotate-[-8deg] shadow-2xl">SATILDI</span>
+                <p className="text-white/70 text-sm mt-4">Bu araç artık mevcut değil</p>
+              </div>
+            </div>
+          )}
+        </div>
+        {arac.fotograflar.length > 1 && <div className="h-14" />}
+
+        <div className="px-5 pt-5">
+          {/* BAŞLIK */}
+          <div>
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <DurumRozeti durum={arac.durum} size="sm" />
+              <span className="text-af-text-disabled text-sm">{arac.yil}</span>
+            </div>
+            <h1 className="text-2xl font-black text-af-text leading-tight">{arac.marka} {arac.model}</h1>
+            <p className="text-af-text-secondary text-base mt-1">{arac.versiyon}</p>
+
+            {/* FİYAT */}
+            <div className="mt-4 p-4 bg-af-surface rounded-2xl border border-af-border">
+              {arac.fiyat_gizle ? (
+                <div>
+                  <p className="text-af-accent font-bold text-lg">Fiyat için iletişime geçin</p>
+                  <p className="text-af-text-secondary text-sm mt-0.5">Satış ekibimizle konuşun</p>
+                </div>
+              ) : arac.fiyat ? (
+                <div>
+                  <p className="text-3xl font-black text-af-accent">{formatFiyat(arac.fiyat)}</p>
+                  {arac.pazarlik_var && (
+                    <span className="inline-flex items-center gap-1 mt-2 text-af-success text-sm font-semibold bg-af-success/10 px-2.5 py-0.5 rounded-full border border-af-success/20">✓ Pazarlığa Açık</span>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          {/* HIZLI SPEC CHİP'LERİ */}
+          <div className="mt-5 grid grid-cols-2 gap-2.5">
+            {[
+              { icon: "📍", label: "Kilometre", value: formatKm(arac.km) },
+              { icon: "⚙️", label: "Vites", value: arac.vites },
+              { icon: "⛽", label: "Yakıt", value: arac.yakit },
+              { icon: "🎨", label: "Renk", value: arac.renk },
+              { icon: "🏎️", label: "Kasa", value: arac.kasa_tipi },
+              { icon: "🗓️", label: "Yıl", value: String(arac.yil) },
+            ].map((chip) => (
+              <div key={chip.label} className="flex items-center gap-2.5 bg-af-surface rounded-xl p-3 border border-af-border">
+                <span className="text-lg leading-none">{chip.icon}</span>
+                <div className="min-w-0">
+                  <p className="text-xs text-af-text-disabled leading-none mb-0.5">{chip.label}</p>
+                  <p className="text-sm font-semibold text-af-text truncate">{chip.value}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* TEKNİK DETAYLAR Accordion */}
+          <div className="mt-5">
+            <button onClick={() => setSpecsOpen((s) => !s)}
+              className="w-full flex items-center justify-between py-3.5 px-4 bg-af-surface rounded-2xl border border-af-border text-left hover:border-af-accent/30 transition-colors">
+              <span className="font-semibold text-af-text text-sm">Teknik Özellikler</span>
+              <ChevronDown className={cn("w-4 h-4 text-af-text-disabled transition-transform duration-300", specsOpen && "rotate-180")} />
+            </button>
+            {specsOpen && (
+              <div>
+                {SPEC_SECTIONS.map((section) => (
+                  <div key={section.baslik} className="mt-3">
+                    <p className="text-xs font-semibold text-af-text-disabled uppercase tracking-wider mb-2 px-1">{section.baslik}</p>
+                    <div className="bg-af-surface rounded-xl border border-af-border divide-y divide-af-border">
+                      {section.items(arac).map(({ label, value }) => (
+                        <div key={label} className="flex items-center justify-between px-4 py-3">
+                          <span className="text-af-text-secondary text-sm">{label}</span>
+                          <span className="text-af-text text-sm font-semibold">{value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* DONANIM LİSTESİ */}
+          {arac.ozellikler.length > 0 && (
+            <div className="mt-5">
+              <h2 className="font-bold text-af-text mb-3">Donanımlar</h2>
+              <div className="grid grid-cols-1 gap-1.5">
+                {arac.ozellikler.map((oz, i) => (
+                  <div key={i} className="flex items-center gap-2.5 py-2 px-3 rounded-xl bg-af-surface border border-af-border">
+                    <span className="text-base">{getOzellikIcon(oz)}</span>
+                    <span className="text-sm text-af-text-secondary">{oz}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* GALERİ BİLGİSİ */}
+          <div className="mt-6 p-4 rounded-2xl border border-af-border bg-af-surface">
+            <h2 className="font-bold text-af-text mb-3">Satıcı</h2>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-12 h-12 rounded-xl bg-af-accent flex items-center justify-center text-white font-black text-lg shadow-lg shadow-af-accent/25">
+                {initials}
+              </div>
+              <div>
+                <p className="font-bold text-af-text">{galeri.ad}</p>
+                <span className="text-xs text-af-accent bg-af-accent/10 px-2 py-0.5 rounded-full border border-af-accent/20">Yetkili Galeri</span>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm text-af-text-secondary">
+                <MapPin className="w-4 h-4 text-af-text-disabled flex-shrink-0" /><span>{galeri.adres}, {galeri.sehir}</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-af-text-secondary">
+                <Clock className="w-4 h-4 text-af-text-disabled flex-shrink-0" />
+                <span>Hft. İçi {galeri.calisma_saatleri.hafta_ici} · Hft. Sonu {galeri.calisma_saatleri.hafta_sonu}</span>
+              </div>
+            </div>
+            <Link href={`/galeri/${galeri.slug}`} className="mt-3 flex items-center gap-1.5 text-sm text-af-accent font-medium hover:text-af-accent-hover transition-colors">
+              Tüm araçları gör <ExternalLink className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          {arac.durum === "Satildi" && (
+            <div className="mt-5 p-4 bg-af-surface rounded-2xl border border-af-border">
+              <p className="text-sm text-af-text-secondary mb-3">Bu araç satılmış olsa da benzer araçlar için galeri ile iletişime geçebilirsiniz.</p>
+              <IletisimButonlari arac={arac} galeri={galeri} variant="inline" eventId={eventId} />
+            </div>
+          )}
+          <div className="h-6" />
+        </div>
+      </div>
+
+      {arac.durum !== "Satildi" && <IletisimButonlari arac={arac} galeri={galeri} variant="sticky" eventId={eventId} />}
+    </div>
+  )
+}
