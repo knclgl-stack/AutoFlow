@@ -64,26 +64,32 @@ export async function POST(req: NextRequest) {
     const formattedHistory = rawHistory.slice(startIdx)
 
     let replyText = ""
-    try {
-      // 1. Önce en güncel gemini-2.0-flash modelini dene
-      const model = genAI.getGenerativeModel({
-        model: "gemini-2.0-flash",
-        systemInstruction: SYSTEM_PROMPT,
-      })
-      const chat = model.startChat({ history: formattedHistory })
-      const result = await chat.sendMessage(message)
-      replyText = result.response.text()
-    } catch (firstErr: any) {
-      console.warn("Gemini 2.0 Flash failed, trying fallback to Gemini 1.5 Flash:", firstErr.message)
-      
-      // 2. Hata alınırsa (örneğin 429 quota hatası) gemini-1.5-flash modeline fallback yap
-      const modelFallback = genAI.getGenerativeModel({
-        model: "gemini-1.5-flash",
-        systemInstruction: SYSTEM_PROMPT,
-      })
-      const chatFallback = modelFallback.startChat({ history: formattedHistory })
-      const resultFallback = await chatFallback.sendMessage(message)
-      replyText = resultFallback.response.text()
+    let lastErrorMsg = ""
+
+    // Sırasıyla denenecek model isimleri
+    const modelsToTry = ["gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-1.5-flash-8b"]
+
+    for (const modelName of modelsToTry) {
+      try {
+        console.log(`Attempting Gemini model: ${modelName}`)
+        const model = genAI.getGenerativeModel({
+          model: modelName,
+          systemInstruction: SYSTEM_PROMPT,
+        })
+        const chat = model.startChat({ history: formattedHistory })
+        const result = await chat.sendMessage(message)
+        replyText = result.response.text()
+        
+        // Eğer buraya ulaştıysa başarıyla yanıt alınmıştır, döngüden çık
+        break
+      } catch (err: any) {
+        console.warn(`Model ${modelName} failed:`, err.message)
+        lastErrorMsg = err.message || "Bilinmeyen hata"
+      }
+    }
+
+    if (!replyText) {
+      throw new Error(lastErrorMsg || "Tüm Gemini modelleri başarısız oldu.")
     }
 
     return NextResponse.json({ reply: replyText })
