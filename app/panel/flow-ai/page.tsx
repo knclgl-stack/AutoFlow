@@ -868,8 +868,17 @@ export default function FlowAiPage() {
 
   const selectColorProfile = (profile: CarColor) => {
     setDetectedColor(profile)
-    setShowroomConfig(makeDefaultConfig(profile, dealerName, dealerLogoUrl || undefined))
+    const newConfig = makeDefaultConfig(profile, dealerName, dealerLogoUrl || undefined)
+    setShowroomConfig(newConfig)
+    triggerRedraw(newConfig)
     addAiMsg(`🎨 Stüdyo konsepti değiştirildi: **${profile.name}**\n\n• Yeni Stil: Bayi Stüdyosu\n• Işıklandırma: Yumuşak softbox aydınlatması ve bayi logosu ile profesyonel çekim stüdyosu`)
+  }
+
+  const triggerRedraw = async (config: ShowroomConfig) => {
+    if (transparentCarUrlState) {
+      const compositeBase64 = await createStudioComposite(transparentCarUrlState, config)
+      setEnhancedImage(compositeBase64)
+    }
   }
 
   /* ── AI İyileştirme ── */
@@ -1450,33 +1459,95 @@ JSON Formatı:
                   )}
                 </div>
 
-                {/* Manuel Renk/Stüdyo Seçimi */}
+                {/* Manuel Renk/Stüdyo Seçimi ve Ek Kontroller */}
                 {uploadedImage && !processing && !colorAnalyzing && (
-                  <div className="bg-white/5 border border-white/10 rounded-xl p-3 flex flex-col gap-2">
-                    <p className="text-xs font-bold text-white/80 flex items-center gap-1.5">
-                      <Palette className="w-3.5 h-3.5 text-af-accent" />
-                      Stüdyo Konsepti Seçin (Algılamayı Düzenle):
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {COLOR_PROFILES.map((p) => {
-                        const isSelected = detectedColor?.nameEn === p.nameEn
-                        return (
-                          <button
-                            key={p.nameEn}
-                            onClick={() => selectColorProfile(p)}
-                            className={cn(
-                              "px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all flex items-center gap-1.5",
-                              isSelected 
-                                ? "bg-white text-black border-white scale-102" 
-                                : "bg-black/40 text-white/70 border-white/5 hover:border-white/20"
-                            )}
-                          >
-                            <div className="w-3 h-3 rounded-full border border-white/10 flex-shrink-0" style={{ backgroundColor: p.hex }} />
-                            {p.name.split(" / ")[0]}
-                          </button>
-                        )
-                      })}
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-4">
+                    {/* Renk Swatch'ları */}
+                    <div className="space-y-2">
+                      <p className="text-xs font-bold text-white/80 flex items-center gap-1.5">
+                        <Palette className="w-3.5 h-3.5 text-af-accent" />
+                        Stüdyo Konsepti Seçin (Algılamayı Düzenle):
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {COLOR_PROFILES.map((p) => {
+                          const isSelected = detectedColor?.nameEn === p.nameEn
+                          return (
+                            <button
+                              key={p.nameEn}
+                              onClick={() => selectColorProfile(p)}
+                              type="button"
+                              className={cn(
+                                "px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all flex items-center gap-1.5",
+                                isSelected 
+                                  ? "bg-white text-black border-white scale-102" 
+                                  : "bg-black/40 text-white/70 border-white/5 hover:border-white/20"
+                              )}
+                            >
+                              <div className="w-3 h-3 rounded-full border border-white/10 flex-shrink-0" style={{ backgroundColor: p.hex }} />
+                              {p.name.split(" / ")[0]}
+                            </button>
+                          )
+                        })}
+                      </div>
                     </div>
+
+                    {/* Hızlı Ayar Anahtarları */}
+                    {showroomConfig && (
+                      <div className="border-t border-white/5 pt-3 grid grid-cols-2 gap-3">
+                        <label className="flex items-center gap-2 text-xs text-white/70 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={showroomConfig.censorPlate}
+                            onChange={(e) => {
+                              const updated = { ...showroomConfig, censorPlate: e.target.checked }
+                              setShowroomConfig(updated)
+                              triggerRedraw(updated)
+                            }}
+                            className="w-3.5 h-3.5 rounded border-white/10 bg-black/40 text-af-accent focus:ring-0"
+                          />
+                          Plakayı Kapat
+                        </label>
+
+                        <label className="flex items-center gap-2 text-xs text-white/70 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={showroomConfig.reflectionOpacity > 0}
+                            onChange={(e) => {
+                              const updated = { 
+                                ...showroomConfig, 
+                                reflectionOpacity: e.target.checked ? 0.16 : 0.0,
+                                lightPanelOpacity: e.target.checked ? 0.1 : 0.0
+                              }
+                              setShowroomConfig(updated)
+                              triggerRedraw(updated)
+                            }}
+                            className="w-3.5 h-3.5 rounded border-white/10 bg-black/40 text-af-accent focus:ring-0"
+                          />
+                          Zemin Yansıması
+                        </label>
+
+                        {/* Ölçekleme (Slider) */}
+                        <div className="col-span-2 space-y-1 pt-1.5">
+                          <div className="flex items-center justify-between text-[11px] text-white/50">
+                            <span>Araba Boyutu (Mesafe / Uzaklık):</span>
+                            <span>{Math.round((showroomConfig.carScale || 0.70) * 100)}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0.45"
+                            max="0.85"
+                            step="0.05"
+                            value={showroomConfig.carScale || 0.70}
+                            onChange={(e) => {
+                              const updated = { ...showroomConfig, carScale: parseFloat(e.target.value) }
+                              setShowroomConfig(updated)
+                              triggerRedraw(updated)
+                            }}
+                            className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-af-accent"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
