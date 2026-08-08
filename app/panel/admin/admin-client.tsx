@@ -521,17 +521,20 @@ export function AdminClient({
   }
 
   // Arama filtreleri
-  const filtrelenmişGaleriler = galleries.filter(g => 
-    g.galeri_adi?.toLowerCase().includes(galeriArama.toLowerCase()) ||
-    g.sehir?.toLowerCase().includes(galeriArama.toLowerCase()) ||
-    g.adres?.toLowerCase().includes(galeriArama.toLowerCase())
-  )
+  const filtrelenmişGaleriler = galleries.filter(g => {
+    const search = galeriArama.toLowerCase()
+    const nameMatch = g.galeri_adi ? g.galeri_adi.toLowerCase().includes(search) : false
+    const cityMatch = g.sehir ? g.sehir.toLowerCase().includes(search) : false
+    const addressMatch = g.adres ? g.adres.toLowerCase().includes(search) : false
+    return nameMatch || cityMatch || addressMatch
+  })
 
   const filtrelenmişAraclar = vehicles.filter(v => {
-    const matchArama = 
-      v.marka?.toLowerCase().includes(aracArama.toLowerCase()) ||
-      v.model?.toLowerCase().includes(aracArama.toLowerCase()) ||
-      v.versiyon?.toLowerCase().includes(aracArama.toLowerCase())
+    const search = aracArama.toLowerCase()
+    const brandMatch = v.marka ? v.marka.toLowerCase().includes(search) : false
+    const modelMatch = v.model ? v.model.toLowerCase().includes(search) : false
+    const versionMatch = v.versiyon ? v.versiyon.toLowerCase().includes(search) : false
+    const matchArama = brandMatch || modelMatch || versionMatch
     
     const matchDurum = aracDurumFiltre === "Hepsi" || v.durum === aracDurumFiltre
     
