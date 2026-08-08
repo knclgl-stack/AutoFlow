@@ -191,7 +191,8 @@ export default function PanelDashboard() {
             .in("arac_id", aracIds)
             .gte("timestamp", sevenDaysAgo.toISOString())
 
-          if (!eventsError && count !== null) {
+          if (eventsError) throw eventsError
+          if (count !== null) {
             setQrOkutmalari(count)
           }
         }
