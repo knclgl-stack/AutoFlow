@@ -25,7 +25,7 @@ export default async function AdminPage() {
   ] = await Promise.all([
     supabase
       .from("galeri_profilleri")
-      .select("id, user_id, galeri_adi, slug, sehir, adres, telefon, logo_url, plan, created_at")
+      .select("user_id, galeri_adi, slug, sehir, adres, telefon, logo_url, plan, created_at")
       .order("created_at", { ascending: false }),
     supabase
       .from("araclar")
@@ -53,15 +53,7 @@ export default async function AdminPage() {
       .eq("device_type", "tablet")
   ])
 
-  if (gResult.error || vResult.error) {
-    return (
-      <div style={{ padding: 24, color: '#ef4444', backgroundColor: '#1a1111', border: '1px solid #ef4444', borderRadius: 12, margin: 24 }}>
-        <h3 className="font-bold text-lg mb-2">Veritabanı Bağlantı / Sorgu Hatası</h3>
-        <p className="text-sm"><b>Galeriler Hatası:</b> {gResult.error?.message} (Kod: {gResult.error?.code})</p>
-        <p className="text-sm"><b>Araçlar Hatası:</b> {vResult.error?.message} (Kod: {vResult.error?.code})</p>
-      </div>
-    )
-  }
+
 
   const scans = (recentScansResult.data || []).map((scan: any) => ({
     ...scan,

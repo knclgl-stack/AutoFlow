@@ -152,7 +152,7 @@ export default function KayitPage() {
       
       const { data: checkData } = await supabase
         .from("galeri_profilleri")
-        .select("id")
+        .select("user_id")
         .eq("slug", slug)
 
       if (checkData && checkData.length > 0) {

@@ -11,7 +11,7 @@ export async function GET() {
     )
 
     // Veritabanını uyanık tutmak için minimal bir sorgu
-    await supabase.from("galeri_profilleri").select("id").limit(1)
+    await supabase.from("galeri_profilleri").select("user_id").limit(1)
 
     return NextResponse.json({ ok: true, ts: new Date().toISOString() })
   } catch {
