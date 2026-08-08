@@ -25,11 +25,11 @@ export default async function AdminPage() {
   ] = await Promise.all([
     supabase
       .from("galeri_profilleri")
-      .select("*")
+      .select("id, user_id, galeri_adi, slug, sehir, adres, telefon, logo_url, plan, created_at")
       .order("created_at", { ascending: false }),
     supabase
       .from("araclar")
-      .select("*")
+      .select("id, user_id, marka, model, versiyon, yil, fiyat, km, durum, fotograflar, renk, boyali_parca, vites, yakit, kasa_tipi, hasar_kaydi, fiyat_gizle, pazarlik_var, created_at")
       .order("created_at", { ascending: false }),
     supabase
       .from("qr_events")
