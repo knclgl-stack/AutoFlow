@@ -48,12 +48,14 @@ interface ShowroomConfig {
   showNeonStrips: boolean
   showSpotlight: boolean
   showFloorGrid: boolean
-  bgStyle: "classic" | "garage" | "sunset" | "minimalist" | "scifi"
+  bgStyle: "classic" | "garage" | "sunset" | "minimalist" | "scifi" | "dealer"
   censorPlate: boolean
   lightPanelOpacity: number
   name: string
   studioDesc: string
   lighting: string
+  dealerName?: string
+  dealerLogoUrl?: string
 }
 
 /* ─────────────────────────────────────────────
@@ -167,6 +169,21 @@ function detectDominantCarColor(imageData: Uint8ClampedArray, width: number, hei
    STUDIO COMPOSITE GENERATOR
 ───────────────────────────────────────────── */
 async function createStudioComposite(transparentCarUrl: string, config: ShowroomConfig): Promise<string> {
+  // Pre-load dealer logo if url exists
+  let logoImg: HTMLImageElement | null = null
+  if (config.dealerLogoUrl) {
+    logoImg = new Image()
+    logoImg.crossOrigin = "anonymous"
+    logoImg.src = config.dealerLogoUrl
+    await new Promise((res) => {
+      logoImg!.onload = () => res(true)
+      logoImg!.onerror = () => {
+        logoImg = null
+        res(false)
+      }
+    })
+  }
+
   return new Promise((resolve, reject) => {
     const img = new Image()
     img.crossOrigin = "anonymous"
@@ -204,7 +221,20 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
       // 1. Showroom Wall background gradient (dark to wall color)
       const horizonY = H * 0.62
 
-      if (config.bgStyle === "sunset") {
+      if (config.bgStyle === "dealer") {
+        const wallGrad = ctx.createLinearGradient(0, 0, 0, horizonY)
+        wallGrad.addColorStop(0, "#e3e3e5")
+        wallGrad.addColorStop(0.3, "#e9e9eb")
+        wallGrad.addColorStop(1, "#f2f2f4")
+        ctx.fillStyle = wallGrad
+        ctx.fillRect(0, 0, W, horizonY)
+
+        const curveGrad = ctx.createLinearGradient(0, horizonY - H * 0.05, 0, horizonY)
+        curveGrad.addColorStop(0, "rgba(0, 0, 0, 0)")
+        curveGrad.addColorStop(1, "rgba(0, 0, 0, 0.08)")
+        ctx.fillStyle = curveGrad
+        ctx.fillRect(0, horizonY - H * 0.05, W, H * 0.05)
+      } else if (config.bgStyle === "sunset") {
         const wallGrad = ctx.createLinearGradient(0, 0, 0, horizonY)
         wallGrad.addColorStop(0, "#080210") // twilight purple
         wallGrad.addColorStop(0.4, "#2e061b") // magenta tint
@@ -293,9 +323,101 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
         ctx.restore()
       }
 
+      // Draw dealer logo/brand on the back wall
+      if (config.bgStyle === "dealer") {
+        const logoY = horizonY - H * 0.28
+        const logoText = (config.dealerName || "AUTOFLOW").toUpperCase()
+        
+        if (logoImg) {
+          ctx.save()
+          const logoW = W * 0.18
+          const logoH = logoW * (logoImg.naturalHeight / logoImg.naturalWidth)
+          ctx.drawImage(logoImg, W / 2 - logoW / 2, logoY - logoH / 2, logoW, logoH)
+          ctx.restore()
+        } else {
+          // Draw a premium dealer vector emblem (wings + text)
+          ctx.save()
+          
+          // 1. Wings emblem
+          ctx.strokeStyle = "#1e1e24"
+          ctx.fillStyle = "#1e1e24"
+          ctx.lineWidth = 2
+          
+          // Center circle for initials
+          const circleR = Math.max(12, H * 0.024)
+          ctx.beginPath()
+          ctx.arc(W / 2, logoY - circleR, circleR, 0, Math.PI * 2)
+          ctx.stroke()
+          
+          // Inner circle
+          ctx.beginPath()
+          ctx.arc(W / 2, logoY - circleR, circleR - 4, 0, Math.PI * 2)
+          ctx.fill()
+          
+          // Initials inside circle
+          ctx.fillStyle = "#ffffff"
+          const initials = logoText.substring(0, 2)
+          ctx.font = `bold ${circleR * 0.85}px sans-serif`
+          ctx.textAlign = "center"
+          ctx.textBaseline = "middle"
+          ctx.fillText(initials, W / 2, logoY - circleR)
+          
+          // Draw wings lines
+          ctx.strokeStyle = "#1e1e24"
+          ctx.lineWidth = 3
+          // Left wing
+          ctx.beginPath()
+          ctx.moveTo(W / 2 - circleR - 4, logoY - circleR)
+          ctx.lineTo(W / 2 - circleR - 40, logoY - circleR - 8)
+          ctx.lineTo(W / 2 - circleR - 10, logoY - circleR + 2)
+          ctx.stroke()
+          
+          ctx.beginPath()
+          ctx.moveTo(W / 2 - circleR - 8, logoY - circleR + 4)
+          ctx.lineTo(W / 2 - circleR - 35, logoY - circleR - 1)
+          ctx.lineTo(W / 2 - circleR - 12, logoY - circleR + 8)
+          ctx.stroke()
+
+          // Right wing
+          ctx.beginPath()
+          ctx.moveTo(W / 2 + circleR + 4, logoY - circleR)
+          ctx.lineTo(W / 2 + circleR + 40, logoY - circleR - 8)
+          ctx.lineTo(W / 2 + circleR + 10, logoY - circleR + 2)
+          ctx.stroke()
+          
+          ctx.beginPath()
+          ctx.moveTo(W / 2 + circleR + 8, logoY - circleR + 4)
+          ctx.lineTo(W / 2 + circleR + 35, logoY - circleR - 1)
+          ctx.lineTo(W / 2 + circleR + 12, logoY - circleR + 8)
+          ctx.stroke()
+          
+          // 2. Logo text underneath
+          ctx.fillStyle = "#1e1e24"
+          const fontSize = Math.max(11, Math.floor(H * 0.026))
+          ctx.font = `bold ${fontSize}px sans-serif`
+          ctx.textAlign = "center"
+          ctx.textBaseline = "middle"
+          ctx.fillText(logoText, W / 2, logoY + circleR * 0.8)
+          
+          ctx.restore()
+        }
+      }
+
       // 3. Showroom Floor background gradient (reflective showroom floor)
       const floorGrad = ctx.createLinearGradient(0, horizonY, 0, H)
-      if (config.bgStyle === "sunset") {
+      if (config.bgStyle === "dealer") {
+        floorGrad.addColorStop(0, "#ececed")
+        floorGrad.addColorStop(0.2, "#dedee0")
+        floorGrad.addColorStop(1, "#ceced0")
+        ctx.fillStyle = floorGrad
+        ctx.fillRect(0, horizonY, W, H - horizonY)
+
+        const floorCurveGrad = ctx.createLinearGradient(0, horizonY, 0, horizonY + H * 0.05)
+        floorCurveGrad.addColorStop(0, "rgba(0, 0, 0, 0.08)")
+        floorCurveGrad.addColorStop(1, "rgba(0, 0, 0, 0)")
+        ctx.fillStyle = floorCurveGrad
+        ctx.fillRect(0, horizonY, W, H * 0.05)
+      } else if (config.bgStyle === "sunset") {
         floorGrad.addColorStop(0, "#c46a12") // warm sunset reflection color
         floorGrad.addColorStop(0.3, "#1a0803")
         floorGrad.addColorStop(1, "#030202")
@@ -535,7 +657,7 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
         ctx.textAlign = "center"
         ctx.textBaseline = "middle"
         // Let's letter-space it a bit
-        const text = "AUTOFLOW"
+        const text = (config.dealerName || "AUTOFLOW").toUpperCase()
         ctx.fillText(text, carCX, plateY + plateH / 2 + 1)
         ctx.restore()
       }
@@ -548,21 +670,7 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
   })
 }
 
-function makeDefaultConfig(colorProfile: CarColor): ShowroomConfig {
-  let defaultBgStyle: "classic" | "garage" | "sunset" | "minimalist" | "scifi" = "classic"
-  
-  if (colorProfile.nameEn === "black") {
-    defaultBgStyle = "minimalist"
-  } else if (colorProfile.nameEn === "red") {
-    defaultBgStyle = "sunset"
-  } else if (colorProfile.nameEn === "blue") {
-    defaultBgStyle = "scifi"
-  } else if (colorProfile.nameEn === "silver") {
-    defaultBgStyle = "garage"
-  } else if (colorProfile.nameEn === "white") {
-    defaultBgStyle = "classic"
-  }
-
+function makeDefaultConfig(colorProfile: CarColor, dealerName?: string, dealerLogoUrl?: string): ShowroomConfig {
   return {
     bg: colorProfile.bg,
     floorColor: colorProfile.bg,
@@ -571,17 +679,19 @@ function makeDefaultConfig(colorProfile: CarColor): ShowroomConfig {
     leftPanelColor: colorProfile.accent,
     rightPanelColor: colorProfile.accent,
     gridColor: colorProfile.accent,
-    reflectionOpacity: 0.22,
+    reflectionOpacity: 0.16,
     spotlightWidth: 0.65,
-    showNeonStrips: true,
-    showSpotlight: true,
-    showFloorGrid: defaultBgStyle !== "minimalist",
-    bgStyle: defaultBgStyle,
+    showNeonStrips: false,
+    showSpotlight: false,
+    showFloorGrid: false,
+    bgStyle: "dealer",
     censorPlate: false,
-    lightPanelOpacity: 0.12,
+    lightPanelOpacity: 0.1,
     name: colorProfile.name,
-    studioDesc: colorProfile.studioDesc,
-    lighting: colorProfile.lighting
+    studioDesc: "Bayi Stüdyosu",
+    lighting: "Yumuşak softbox aydınlatması ve bayi logosu ile profesyonel çekim stüdyosu",
+    dealerName: dealerName || "AUTOFLOW",
+    dealerLogoUrl: dealerLogoUrl || undefined
   }
 }
 
@@ -592,6 +702,8 @@ export default function FlowAiPage() {
   const { user } = useAuth()
   const supabase = createClient()
   const [dbPlan, setDbPlan] = useState("Essential")
+  const [dealerName, setDealerName] = useState<string>("AUTOFLOW")
+  const [dealerLogoUrl, setDealerLogoUrl] = useState<string | null>(null)
 
   /* --- Chat State --- */
   const [mesajlar, setMesajlar] = useState<Mesaj[]>([])
@@ -636,18 +748,20 @@ export default function FlowAiPage() {
     setMesajlar(prev => [...prev, { id: Date.now() + Math.random(), sender: "ai", text, timestamp: now() }])
   }
 
-  // Planı Supabase'den çek
+  // Planı ve Galeri Bilgilerini Supabase'den çek
   useEffect(() => {
     if (!user) return
     async function planYukle() {
       if (!user) return
       const { data } = await supabase
         .from("galeri_profilleri")
-        .select("plan")
+        .select("plan, galeri_adi, logo_url")
         .eq("user_id", user.id)
         .single()
-      if (data && data.plan) {
-        setDbPlan(data.plan)
+      if (data) {
+        if (data.plan) setDbPlan(data.plan)
+        if (data.galeri_adi) setDealerName(data.galeri_adi)
+        if (data.logo_url) setDealerLogoUrl(data.logo_url)
       }
     }
     planYukle()
@@ -679,7 +793,7 @@ export default function FlowAiPage() {
   const analyzeImageColor = useCallback((imageUrl: string, forcedProfile?: CarColor) => {
     if (forcedProfile) {
       setDetectedColor(forcedProfile)
-      setShowroomConfig(makeDefaultConfig(forcedProfile))
+      setShowroomConfig(makeDefaultConfig(forcedProfile, dealerName, dealerLogoUrl || undefined))
       setColorSwatchVisible(true)
       return
     }
@@ -696,18 +810,18 @@ export default function FlowAiPage() {
       const { data } = ctx.getImageData(0, 0, W, H)
       const profile = detectDominantCarColor(data, W, H)
       setDetectedColor(profile)
-      setShowroomConfig(makeDefaultConfig(profile))
+      setShowroomConfig(makeDefaultConfig(profile, dealerName, dealerLogoUrl || undefined))
       setColorSwatchVisible(true)
       setColorAnalyzing(false)
-      addAiMsg(`🎨 Renk Analizi Tamamlandı!\n\nAracınızın baskın rengi: **${profile.name}** olarak tespit edildi.\n\nÖnerilen stüdyo kurulumu: ${profile.studioDesc}\n💡 Işık tasarımı: ${profile.lighting}\n\n"Görseli İyileştir" butonuna basarak AI stüdyo dönüşümünü başlatabilirsiniz!`)
+      addAiMsg(`🎨 Renk Analizi Tamamlandı!\n\nAracınızın baskın rengi: **${profile.name}** olarak tespit edildi.\n\nÖnerilen stüdyo kurulumu: Bayi Stüdyosu\n💡 Işık tasarımı: Yumuşak softbox aydınlatması ve bayi logosu ile profesyonel çekim stüdyosu\n\n"Görseli İyileştir" butonuna basarak AI stüdyo dönüşümünü başlatabilirsiniz!`)
     }
     img.onerror = () => {
       setColorAnalyzing(false)
       setDetectedColor(COLOR_PROFILES[4])
-      setShowroomConfig(makeDefaultConfig(COLOR_PROFILES[4]))
+      setShowroomConfig(makeDefaultConfig(COLOR_PROFILES[4], dealerName, dealerLogoUrl || undefined))
     }
     img.src = imageUrl
-  }, [])
+  }, [dealerName, dealerLogoUrl])
 
   /* ── Dosya Yükleme ── */
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -741,8 +855,8 @@ export default function FlowAiPage() {
 
   const selectColorProfile = (profile: CarColor) => {
     setDetectedColor(profile)
-    setShowroomConfig(makeDefaultConfig(profile))
-    addAiMsg(`🎨 Stüdyo konsepti değiştirildi: **${profile.name}**\n\n• Yeni Stil: ${profile.studioDesc}\n• Işıklandırma: ${profile.lighting}`)
+    setShowroomConfig(makeDefaultConfig(profile, dealerName, dealerLogoUrl || undefined))
+    addAiMsg(`🎨 Stüdyo konsepti değiştirildi: **${profile.name}**\n\n• Yeni Stil: Bayi Stüdyosu\n• Işıklandırma: Yumuşak softbox aydınlatması ve bayi logosu ile profesyonel çekim stüdyosu`)
   }
 
   /* ── AI İyileştirme ── */
