@@ -57,6 +57,10 @@ interface ShowroomConfig {
   dealerName?: string
   dealerLogoUrl?: string
   carScale?: number
+  plateXPercent?: number
+  plateYPercent?: number
+  plateWPercent?: number
+  plateHPercent?: number
 }
 
 /* ─────────────────────────────────────────────
@@ -618,13 +622,14 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
       // 9. Draw original scaled car on top
       ctx.drawImage(img, drawX, drawY, drawW, drawH)
 
-      // 10. Optional License Plate Censor (Aligned with scaled car center)
+      // 10. Optional License Plate Censor
       if (config.censorPlate) {
         ctx.save()
-        const plateW = carW * scale * 0.18
-        const plateH = plateW * 0.22
-        const plateX = W / 2 - plateW / 2
-        const plateY = carBottomY - carH * scale * 0.13
+        // Use relative percent positions if supplied, otherwise fallback to bumper center
+        const plateW = config.plateWPercent !== undefined ? (config.plateWPercent / 100) * W : carW * scale * 0.18
+        const plateH = config.plateHPercent !== undefined ? (config.plateHPercent / 100) * H : plateW * 0.22
+        const plateX = config.plateXPercent !== undefined ? (config.plateXPercent / 100) * W : W / 2 - plateW / 2
+        const plateY = config.plateYPercent !== undefined ? (config.plateYPercent / 100) * H : carBottomY - carH * scale * 0.13
 
         // Draw plate shadow
         ctx.shadowColor = "rgba(0, 0, 0, 0.4)"
@@ -659,7 +664,7 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
         ctx.textBaseline = "middle"
         // Let's letter-space it a bit
         const text = (config.dealerName || "AUTOFLOW").toUpperCase()
-        ctx.fillText(text, carCX, plateY + plateH / 2 + 1)
+        ctx.fillText(text, plateX + plateW / 2, plateY + plateH / 2 + 1)
         ctx.restore()
       }
 
@@ -741,6 +746,70 @@ export default function FlowAiPage() {
   const [revisionMode, setRevisionMode] = useState(false)
   const [transparentCarUrlState, setTransparentCarUrlState] = useState<string | null>(null)
   const [showroomConfig, setShowroomConfig] = useState<ShowroomConfig | null>(null)
+
+  const [plateXPercent, setPlateXPercent] = useState<number>(41)
+  const [plateYPercent, setPlateYPercent] = useState<number>(68)
+  const [plateWPercent, setPlateWPercent] = useState<number>(18)
+  const [plateHPercent, setPlateHPercent] = useState<number>(4)
+  const [isDraggingPlate, setIsDraggingPlate] = useState(false)
+  const [isResizingPlate, setIsResizingPlate] = useState(false)
+
+  // Drag & Resize mouse movements
+  useEffect(() => {
+    if (!isDraggingPlate && !isResizingPlate) return
+
+    const handleMove = (clientX: number, clientY: number) => {
+      const container = sliderRef.current
+      if (!container) return
+      const rect = container.getBoundingClientRect()
+      
+      if (isDraggingPlate) {
+        let newX = ((clientX - rect.left) / rect.width) * 100 - plateWPercent / 2
+        let newY = ((clientY - rect.top) / rect.height) * 100 - plateHPercent / 2
+        
+        newX = Math.max(0, Math.min(100 - plateWPercent, newX))
+        newY = Math.max(0, Math.min(100 - plateHPercent, newY))
+        
+        setPlateXPercent(newX)
+        setPlateYPercent(newY)
+      } else if (isResizingPlate) {
+        const plateLeftPX = rect.left + (plateXPercent / 100) * rect.width
+        const plateTopPX = rect.top + (plateYPercent / 100) * rect.height
+        
+        let newW = ((clientX - plateLeftPX) / rect.width) * 100
+        let newH = ((clientY - plateTopPX) / rect.height) * 100
+        
+        newW = Math.max(5, Math.min(40, newW))
+        newH = Math.max(2, Math.min(15, newH))
+        
+        setPlateWPercent(newW)
+        setPlateHPercent(newH)
+      }
+    }
+
+    const onMouseMove = (e: MouseEvent) => handleMove(e.clientX, e.clientY)
+    const onTouchMove = (e: TouchEvent) => handleMove(e.touches[0].clientX, e.touches[0].clientY)
+
+    const onMouseUp = () => {
+      setIsDraggingPlate(false)
+      setIsResizingPlate(false)
+      if (showroomConfig) {
+        triggerRedraw(showroomConfig, plateXPercent, plateYPercent, plateWPercent, plateHPercent)
+      }
+    }
+
+    window.addEventListener("mousemove", onMouseMove)
+    window.addEventListener("touchmove", onTouchMove)
+    window.addEventListener("mouseup", onMouseUp)
+    window.addEventListener("touchend", onMouseUp)
+
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove)
+      window.removeEventListener("touchmove", onTouchMove)
+      window.removeEventListener("mouseup", onMouseUp)
+      window.removeEventListener("touchend", onMouseUp)
+    }
+  }, [isDraggingPlate, isResizingPlate, plateXPercent, plateYPercent, plateWPercent, plateHPercent, showroomConfig])
 
   function now() {
     return new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })
@@ -863,9 +932,15 @@ export default function FlowAiPage() {
     addAiMsg(`🎨 Stüdyo konsepti değiştirildi: **${profile.name}**\n\n• Yeni Stil: Bayi Stüdyosu\n• Işıklandırma: Yumuşak softbox aydınlatması ve bayi logosu ile profesyonel çekim stüdyosu`)
   }
 
-  const triggerRedraw = async (config: ShowroomConfig) => {
+  const triggerRedraw = async (config: ShowroomConfig, px = plateXPercent, py = plateYPercent, pw = plateWPercent, ph = plateHPercent) => {
     if (transparentCarUrlState) {
-      const compositeBase64 = await createStudioComposite(transparentCarUrlState, config)
+      const compositeBase64 = await createStudioComposite(transparentCarUrlState, {
+        ...config,
+        plateXPercent: px,
+        plateYPercent: py,
+        plateWPercent: pw,
+        plateHPercent: ph
+      })
       setEnhancedImage(compositeBase64)
     }
   }
@@ -1594,6 +1669,52 @@ JSON Formatı:
                   <span className="absolute right-3 top-3 bg-af-accent text-white text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg z-10">
                     AI Stüdyo
                   </span>
+
+                  {/* Draggable & Resizable License Plate Cover */}
+                  {showroomConfig?.censorPlate && (
+                    <div
+                      onMouseDown={(e) => {
+                        e.stopPropagation()
+                        setIsDraggingPlate(true)
+                      }}
+                      onTouchStart={(e) => {
+                        e.stopPropagation()
+                        setIsDraggingPlate(true)
+                      }}
+                      className="absolute group border border-amber-400/50 hover:border-amber-400 cursor-move select-none flex items-center justify-center bg-[#111112] rounded shadow-2xl"
+                      style={{
+                        left: `${plateXPercent}%`,
+                        top: `${plateYPercent}%`,
+                        width: `${plateWPercent}%`,
+                        height: `${plateHPercent}%`,
+                        zIndex: 20
+                      }}
+                    >
+                      {/* Inner accent border */}
+                      <div className="absolute inset-0.5 border border-white/10 rounded pointer-events-none" />
+                      
+                      {/* Dealer name */}
+                      <span className="text-white text-[7px] md:text-[9px] font-bold uppercase tracking-wider select-none truncate px-1 text-center">
+                        {(showroomConfig.dealerName || "AUTOFLOW").toUpperCase()}
+                      </span>
+                      
+                      {/* Resize Handle (bottom-right corner) */}
+                      <div
+                        onMouseDown={(e) => {
+                          e.stopPropagation()
+                          e.preventDefault()
+                          setIsResizingPlate(true)
+                        }}
+                        onTouchStart={(e) => {
+                          e.stopPropagation()
+                          e.preventDefault()
+                          setIsResizingPlate(true)
+                        }}
+                        className="absolute right-0 bottom-0 w-3 h-3 bg-amber-400 rounded-bl cursor-se-resize flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        style={{ zIndex: 21 }}
+                      />
+                    </div>
+                  )}
 
                   {/* Before (clipped left side) */}
                   <div
