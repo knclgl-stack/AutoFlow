@@ -99,12 +99,13 @@ ON public.galeri_profilleri FOR SELECT
 TO public
 USING (true);
 
--- Kullanıcılar kendi profillerini ekleyebilir (INSERT)
+-- Kullanıcılar kendi profillerini ekleyebilir (INSERT - Kayıt esnasında henüz session oturumu tam oturmadığı durumlar için public yapıldı)
 DROP POLICY IF EXISTS "Allow authenticated insert own gallery profile" ON public.galeri_profilleri;
-CREATE POLICY "Allow authenticated insert own gallery profile"
+DROP POLICY IF EXISTS "Allow public insert gallery profile" ON public.galeri_profilleri;
+CREATE POLICY "Allow public insert gallery profile"
 ON public.galeri_profilleri FOR INSERT
-TO authenticated
-WITH CHECK (auth.uid() = user_id);
+TO public
+WITH CHECK (true);
 
 -- Kullanıcılar ve adminler profil güncelleyebilir (UPDATE)
 DROP POLICY IF EXISTS "Admins can update any gallery" ON public.galeri_profilleri;
