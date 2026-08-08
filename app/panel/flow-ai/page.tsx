@@ -31,7 +31,6 @@ interface CarColor {
   bg: string       // arka plan teması
   accent: string   // vurgu rengi
   lighting: string // ışık açıklaması
-  afterImage: string
   studioDesc: string
   cssGradient: string
 }
@@ -48,7 +47,6 @@ const COLOR_PROFILES: CarColor[] = [
     bg: "#0a0a0a",
     accent: "#ffffff",
     lighting: "Dramatik gümüş kenar ışığı, siyah sonsuz arka plan, yansımalı ıslak zemin",
-    afterImage: "/ai/after_car_black.png",
     studioDesc: "Saf Siyah Stüdyo · Rim Işığı",
     cssGradient: "from-gray-900 to-black"
   },
@@ -59,7 +57,6 @@ const COLOR_PROFILES: CarColor[] = [
     bg: "#f0f0f0",
     accent: "#c0a060",
     lighting: "Yumuşak softbox ışığı, beyaz sonsuz arka plan, altın vurgu aydınlatma",
-    afterImage: "/ai/after_car_white.png",
     studioDesc: "Beyaz Stüdyo · Altın Vurgu",
     cssGradient: "from-gray-200 to-gray-100"
   },
@@ -70,7 +67,6 @@ const COLOR_PROFILES: CarColor[] = [
     bg: "#1a0505",
     accent: "#ff6644",
     lighting: "Altın saat gün batımı ışığı, sahil yolu manzarası, dramatik sıcak tonlar",
-    afterImage: "/ai/after_car_2.png",
     studioDesc: "Sahil Gün Batımı · Sıcak Işık",
     cssGradient: "from-red-900 to-orange-900"
   },
@@ -81,7 +77,6 @@ const COLOR_PROFILES: CarColor[] = [
     bg: "#050a1a",
     accent: "#3399ff",
     lighting: "Soğuk mavi neon aydınlatma, koyu lacivert stüdyo zemini, parlak elektrik mavi şeritler",
-    afterImage: "/ai/after_car_blue.png",
     studioDesc: "Neon Mavi Stüdyo · Elektrik Işık",
     cssGradient: "from-blue-900 to-indigo-950"
   },
@@ -92,7 +87,6 @@ const COLOR_PROFILES: CarColor[] = [
     bg: "#111111",
     accent: "#aaaaaa",
     lighting: "Neon aksan ışıkları, modern showroom zemini, mor-mavi vurgu şeritler",
-    afterImage: "/ai/after_car_1.png",
     studioDesc: "Modern Showroom · Neon Vurgu",
     cssGradient: "from-gray-800 to-gray-900"
   },
@@ -149,6 +143,238 @@ function detectDominantCarColor(imageData: Uint8ClampedArray, width: number, hei
 }
 
 /* ─────────────────────────────────────────────
+   STUDIO COMPOSITE GENERATOR
+───────────────────────────────────────────── */
+async function createStudioComposite(transparentCarUrl: string, colorProfile: CarColor): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.crossOrigin = "anonymous"
+    img.onload = () => {
+      const W = img.naturalWidth || img.width
+      const H = img.naturalHeight || img.height
+
+      const canvas = document.createElement("canvas")
+      canvas.width = W
+      canvas.height = H
+      const ctx = canvas.getContext("2d")!
+
+      // 1. Showroom Wall background gradient (dark to color profile bg)
+      const horizonY = H * 0.62
+
+      const wallGrad = ctx.createLinearGradient(0, 0, 0, horizonY)
+      wallGrad.addColorStop(0, "#050507")
+      wallGrad.addColorStop(0.7, "#0c0c10")
+      wallGrad.addColorStop(1, colorProfile.bg)
+      ctx.fillStyle = wallGrad
+      ctx.fillRect(0, 0, W, horizonY)
+
+      // 2. Glowing LED Lines / Neon strips on the Wall (futuristic showroom look)
+      const accentHex = colorProfile.accent
+      let accentRgb = "128, 128, 128"
+      if (accentHex.startsWith("#")) {
+        const hex = accentHex.substring(1)
+        if (hex.length === 6) {
+          const r = parseInt(hex.substring(0, 2), 16)
+          const g = parseInt(hex.substring(2, 4), 16)
+          const b = parseInt(hex.substring(4, 6), 16)
+          accentRgb = `${r}, ${g}, ${b}`
+        }
+      }
+
+      // Draw two horizontal glowing wall strips
+      ctx.save()
+      ctx.strokeStyle = `rgba(${accentRgb}, 0.4)`
+      ctx.lineWidth = Math.max(2, H * 0.005)
+      ctx.shadowColor = `rgba(${accentRgb}, 0.8)`
+      ctx.shadowBlur = 15
+      
+      // Top strip
+      ctx.beginPath()
+      ctx.moveTo(0, horizonY - H * 0.25)
+      ctx.lineTo(W, horizonY - H * 0.25)
+      ctx.stroke()
+      
+      // Lower strip
+      ctx.beginPath()
+      ctx.moveTo(0, horizonY - H * 0.12)
+      ctx.lineTo(W, horizonY - H * 0.12)
+      ctx.stroke()
+      ctx.restore()
+
+      // 3. Showroom Floor background gradient (reflective showroom floor)
+      const floorGrad = ctx.createLinearGradient(0, horizonY, 0, H)
+      floorGrad.addColorStop(0, colorProfile.bg)
+      floorGrad.addColorStop(0.3, "#060608")
+      floorGrad.addColorStop(1, "#020203")
+      ctx.fillStyle = floorGrad
+      ctx.fillRect(0, horizonY, W, H - horizonY)
+
+      // 4. Perspective Grid on the floor (tiles)
+      ctx.save()
+      ctx.strokeStyle = `rgba(${accentRgb}, 0.04)`
+      ctx.lineWidth = 1
+      // Horizontal grid lines (perspective spacing)
+      let currentY = horizonY
+      let spacing = (H - horizonY) * 0.05
+      while (currentY < H) {
+        ctx.beginPath()
+        ctx.moveTo(0, currentY)
+        ctx.lineTo(W, currentY)
+        ctx.stroke()
+        spacing *= 1.45 // wider spacing as it gets closer
+        currentY += spacing
+      }
+      // Perspective radial lines
+      const lineCount = 12
+      for (let i = 0; i <= lineCount; i++) {
+        const xFloor = (i / lineCount) * W * 2.5 - W * 0.75
+        ctx.beginPath()
+        ctx.moveTo(W / 2, horizonY)
+        ctx.lineTo(xFloor, H)
+        ctx.stroke()
+      }
+      ctx.restore()
+
+      // 5. Overhead Light Panels (Reflected on the Floor)
+      // Left panel reflection
+      const leftRef = ctx.createLinearGradient(W * 0.25, horizonY, W * 0.25, H)
+      leftRef.addColorStop(0, `rgba(${accentRgb}, 0.12)`)
+      leftRef.addColorStop(0.5, `rgba(${accentRgb}, 0.04)`)
+      leftRef.addColorStop(1, "rgba(0, 0, 0, 0)")
+      ctx.fillStyle = leftRef
+      ctx.fillRect(W * 0.15, horizonY, W * 0.2, H - horizonY)
+
+      // Right panel reflection
+      const rightRef = ctx.createLinearGradient(W * 0.75, horizonY, W * 0.75, H)
+      rightRef.addColorStop(0, `rgba(${accentRgb}, 0.12)`)
+      rightRef.addColorStop(0.5, `rgba(${accentRgb}, 0.04)`)
+      rightRef.addColorStop(1, "rgba(0, 0, 0, 0)")
+      ctx.fillStyle = rightRef
+      ctx.fillRect(W * 0.65, horizonY, W * 0.2, H - horizonY)
+
+      // 6. Scan bounding box of the car
+      const scanCanvas = document.createElement("canvas")
+      const scanW = 200, scanH = 200
+      scanCanvas.width = scanW
+      scanCanvas.height = scanH
+      const scanCtx = scanCanvas.getContext("2d")!
+      scanCtx.drawImage(img, 0, 0, scanW, scanH)
+      let scanData = null
+      try {
+        scanData = scanCtx.getImageData(0, 0, scanW, scanH).data
+      } catch (e) {
+        console.error("Canvas read error:", e)
+      }
+
+      let minX = scanW, maxX = 0, minY = scanH, maxY = 0
+      let foundPixels = false
+      if (scanData) {
+        for (let y = 0; y < scanH; y++) {
+          for (let x = 0; x < scanW; x++) {
+            const alpha = scanData[(y * scanW + x) * 4 + 3]
+            if (alpha > 30) {
+              if (x < minX) minX = x
+              if (x > maxX) maxX = x
+              if (y < minY) minY = y
+              if (y > maxY) maxY = y
+              foundPixels = true
+            }
+          }
+        }
+      }
+
+      let normMinX = foundPixels ? minX / scanW : 0.15
+      let normMaxX = foundPixels ? maxX / scanW : 0.85
+      let normMinY = foundPixels ? minY / scanH : 0.25
+      let normMaxY = foundPixels ? maxY / scanH : 0.75
+
+      const carW = (normMaxX - normMinX) * W
+      const carH = (normMaxY - normMinY) * H
+      const carCX = (normMinX + normMaxX) / 2 * W
+      const carBottomY = normMaxY * H
+
+      // Draw volumetric spotlight cone
+      ctx.save()
+      const lightBeam = ctx.createLinearGradient(carCX, 0, carCX, carBottomY)
+      lightBeam.addColorStop(0, `rgba(${accentRgb}, 0.22)`)
+      lightBeam.addColorStop(0.5, `rgba(${accentRgb}, 0.08)`)
+      lightBeam.addColorStop(1, "rgba(0, 0, 0, 0)")
+      ctx.fillStyle = lightBeam
+      ctx.beginPath()
+      ctx.moveTo(carCX - carW * 0.15, 0)
+      ctx.lineTo(carCX + carW * 0.15, 0)
+      ctx.lineTo(carCX + carW * 0.65, carBottomY)
+      ctx.lineTo(carCX - carW * 0.65, carBottomY)
+      ctx.closePath()
+      ctx.fill()
+      ctx.restore()
+
+      // 7. Floor Reflection (flipped car)
+      ctx.save()
+      ctx.translate(0, carBottomY)
+      ctx.scale(1, -0.28)
+      ctx.globalAlpha = 0.22
+      ctx.drawImage(img, 0, 0, W, H)
+      ctx.restore()
+
+      // Reflection fading overlay
+      const reflectionHeight = carH * 0.3
+      const overlayGrad = ctx.createLinearGradient(0, carBottomY, 0, carBottomY + reflectionHeight)
+      overlayGrad.addColorStop(0, "rgba(6, 6, 8, 0.1)")
+      overlayGrad.addColorStop(1, "rgba(2, 2, 3, 0.98)")
+      ctx.fillStyle = overlayGrad
+      ctx.fillRect(0, carBottomY, W, reflectionHeight + 10)
+
+      // 8. Contact Shadows
+      // Ambient shadow
+      const ambientShadow = ctx.createRadialGradient(
+        carCX, carBottomY, 0,
+        carCX, carBottomY, carW * 0.54
+      )
+      ambientShadow.addColorStop(0, "rgba(0, 0, 0, 0.75)")
+      ambientShadow.addColorStop(0.3, "rgba(0, 0, 0, 0.45)")
+      ambientShadow.addColorStop(0.7, "rgba(0, 0, 0, 0.15)")
+      ambientShadow.addColorStop(1, "rgba(0, 0, 0, 0)")
+
+      ctx.save()
+      ctx.translate(carCX, carBottomY)
+      ctx.scale(1, 0.075)
+      ctx.fillStyle = ambientShadow
+      ctx.beginPath()
+      ctx.arc(0, 0, carW * 0.54, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.restore()
+
+      // Contact shadow
+      const tightShadow = ctx.createRadialGradient(
+        carCX, carBottomY, 0,
+        carCX, carBottomY, carW * 0.45
+      )
+      tightShadow.addColorStop(0, "rgba(0, 0, 0, 0.92)")
+      tightShadow.addColorStop(0.5, "rgba(0, 0, 0, 0.6)")
+      tightShadow.addColorStop(1, "rgba(0, 0, 0, 0)")
+
+      ctx.save()
+      ctx.translate(carCX, carBottomY)
+      ctx.scale(1, 0.03)
+      ctx.fillStyle = tightShadow
+      ctx.beginPath()
+      ctx.arc(0, 0, carW * 0.45, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.restore()
+
+      // 9. Draw original car on top
+      ctx.drawImage(img, 0, 0, W, H)
+
+      resolve(canvas.toDataURL("image/png"))
+    }
+
+    img.onerror = () => reject(new Error("Görsel yüklenemedi."))
+    img.src = transparentCarUrl
+  })
+}
+
+/* ─────────────────────────────────────────────
    COMPONENT
 ───────────────────────────────────────────── */
 export default function FlowAiPage() {
@@ -166,6 +392,7 @@ export default function FlowAiPage() {
   const [detectedColor, setDetectedColor] = useState<CarColor | null>(null)
   const [colorAnalyzing, setColorAnalyzing] = useState(false)
   const [colorSwatchVisible, setColorSwatchVisible] = useState(false)
+  const [enhancedImage, setEnhancedImage] = useState<string | null>(null)
 
   /* --- Chat AI State --- */
   const [isTyping, setIsTyping] = useState(false)
@@ -182,15 +409,6 @@ export default function FlowAiPage() {
   const [sliderPos, setSliderPos] = useState(50)
   const sliderRef = useRef<HTMLDivElement>(null)
   const isDragging = useRef(false)
-
-  /* --- Preset Demo Images --- */
-  const PRESET_DEMOS = [
-    { label: "Siyah Sedan (Otopark)", color: "black", before: "/ai/before_car_black.png", colorProfile: COLOR_PROFILES[0] },
-    { label: "Beyaz SUV (Açık Hava)", color: "white", before: "/ai/before_car_white.png", colorProfile: COLOR_PROFILES[1] },
-    { label: "Kırmızı Hatchback (Sokak)", color: "red", before: "/ai/before_car_2.png", colorProfile: COLOR_PROFILES[2] },
-    { label: "Mavi Coupe (Gece Sokak)", color: "blue", before: "/ai/before_car_blue.png", colorProfile: COLOR_PROFILES[3] },
-    { label: "Gümüş Sedan (Bahçe)", color: "silver", before: "/ai/before_car_1.png", colorProfile: COLOR_PROFILES[4] },
-  ]
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -232,7 +450,7 @@ export default function FlowAiPage() {
       {
         id: 1,
         sender: "ai",
-        text: `Merhaba! Ben Flow AI. 🎨\n\n${planText}\n\nAraç fotoğrafınızı analiz edip rengine özel stüdyo ortamı seçebiliyorum. Bir araç fotoğrafı yükleyin ya da aşağıdaki hızlı renklerden birini seçerek test edin!`,
+        text: `Merhaba! Ben Flow AI. 🎨\n\n${planText}\n\nAraç fotoğrafınızı analiz edip rengine özel stüdyo ortamı seçebiliyorum. Başlamak için bir araç fotoğrafı yükleyin!`,
         timestamp: now()
       }
     ])
@@ -282,6 +500,7 @@ export default function FlowAiPage() {
       const src = reader.result as string
       setUploadedImage(src)
       setEnhanceSuccess(false)
+      setEnhancedImage(null)
       setDetectedColor(null)
       setColorSwatchVisible(false)
       const userMsg: Mesaj = {
@@ -296,24 +515,8 @@ export default function FlowAiPage() {
     reader.readAsDataURL(file)
   }
 
-  /* ── Örnek Seçimi ── */
-  const handlePresetSelect = (demo: typeof PRESET_DEMOS[0]) => {
-    setUploadedImage(demo.before)
-    setEnhanceSuccess(false)
-    setDetectedColor(null)
-    setColorSwatchVisible(false)
-    const userMsg: Mesaj = {
-      id: Date.now() + Math.random(), sender: "user",
-      text: `Örnek seçildi: ${demo.label}`,
-      timestamp: now()
-    }
-    setMesajlar(prev => [...prev, userMsg])
-    addAiMsg(`"${demo.label}" şablonu yüklendi! Renk analizi yapılıyor...`)
-    setTimeout(() => analyzeImageColor(demo.before, demo.colorProfile), 800)
-  }
-
   /* ── AI İyileştirme ── */
-  const handleEnhance = () => {
+  const handleEnhance = async () => {
     if (!uploadedImage || !detectedColor) return
 
     if (dbPlan === "Essential") {
@@ -321,46 +524,52 @@ export default function FlowAiPage() {
       return
     }
 
+    console.log("Flow AI: Gerçek zamanlı yapay zeka stüdyo sentezi başlatılıyor. Mock veri kullanılmıyor.")
+
     setProcessing(true)
-    setProcessingStep(0)
+    setProcessingStep(5)
     setEnhanceSuccess(false)
+    setEnhancedImage(null)
 
-    const ASAMALAR = [
-      { label: "Araç gövdesi konturları tespit ediliyor...", pct: 15 },
-      { label: "Kötü arka plan maskeleniyor ve siliniyor...", pct: 35 },
-      { label: `${detectedColor.name} rengi için stüdyo kurulumu yapılandırılıyor...`, pct: 55 },
-      { label: "Işık haritası ve renk tonu dengeleniyor...", pct: 75 },
-      { label: "Zemin yansıması ve gölge render ediliyor...", pct: 90 },
-      { label: "Son kalite kontrolü ve HDR birleşimi...", pct: 100 },
-    ]
-
-    let step = 0
-    const tick = () => {
-      if (step >= ASAMALAR.length) {
-        setProcessing(false)
-        setEnhanceSuccess(true)
-        setSliderPos(50)
-
-        let successMsg = `✅ İşlem tamamlandı!\n\nAracınız "${detectedColor.studioDesc}" stüdyosuna başarıyla taşındı.\n\n• Arka plan: ${detectedColor.name} rengiyle uyumlu özel stüdyo\n• Işık kurulumu: ${detectedColor.lighting}\n\nSlider'ı kaydırarak öncesi/sonrası karşılaştırın!`
-        
-        if (dbPlan === "Elite") {
-          successMsg += "\n\n👑 Elite öncelikli işlem modunda saniyeler içinde render tamamlandı (Sınırsız ve ücretsiz)."
-        } else {
-          successMsg += "\n\n★ Professional sınırsız ücretsiz kullanım kapsamında işlendi."
-        }
-
-        addAiMsg(successMsg)
-        return
-      }
-      setProcessingStep(ASAMALAR[step].pct)
-      setProcessingLabel(ASAMALAR[step].label)
-      step++
+    // Kullanıcının kendi fotoğrafı için GERÇEK AI arka plan silme ve stüdyo birleştirme
+    try {
+      setProcessingStep(20)
+      setProcessingLabel("Yapay zeka stüdyo motoru indiriliyor (yaklaşık 20MB)...")
       
-      // Elite ise daha hızlı render (Priority)
-      const renderSpeed = dbPlan === "Elite" ? 500 : 1100
-      setTimeout(tick, renderSpeed)
+      // img.ly background removal modülünü tarayıcıya dinamik yükle
+      const imgly = await eval("import('https://cdn.jsdelivr.net/npm/@imgly/background-removal/+esm')")
+      
+      setProcessingStep(45)
+      setProcessingLabel("Araç hatları maskeleniyor ve arka plan siliniyor...")
+      
+      // Arka planı sil ve şeffaf blob elde et
+      const processedBlob = await imgly.removeBackground(uploadedImage)
+      const transparentCarUrl = URL.createObjectURL(processedBlob)
+
+      setProcessingStep(75)
+      setProcessingLabel("Stüdyo ışıkları, ıslak zemin yansımaları ve yumuşak gölgeler render ediliyor...")
+
+      // Stüdyo şablonu ile birleştir
+      const compositeBase64 = await createStudioComposite(transparentCarUrl, detectedColor)
+      setEnhancedImage(compositeBase64)
+
+      setProcessingStep(100)
+      setProcessingLabel("Tamamlandı!")
+      
+      setProcessing(false)
+      setEnhanceSuccess(true)
+      setSliderPos(50)
+
+      let successMsg = `✅ İşlem başarıyla tamamlandı!\n\nAracınızın orijinal hatları ve kalitesi korunarak "${detectedColor.studioDesc}" ortamı oluşturuldu.\n\n• Arka plan: ${detectedColor.name} uyumlu stüdyo\n• Zemin: Gerçekçi araba yansıması ve gölgesi\n• Işıklandırma: Yumuşak softbox aydınlatması\n\nÖncesi/sonrası için slider'ı kaydırabilirsiniz!`
+      addAiMsg(successMsg)
+
+      // Belleği temizle
+      URL.revokeObjectURL(transparentCarUrl)
+    } catch (err: any) {
+      console.error("Yapay zeka stüdyo hatası:", err)
+      setProcessing(false)
+      alert(`Fotoğraf işlenirken bir hata oluştu. Lütfen görselin kalitesini veya internet bağlantınızı kontrol edin. Hata: ${err.message || err}`)
     }
-    setTimeout(tick, 300)
   }
 
   /* ── Chat Gönder — Gerçek Gemini API ── */
@@ -513,26 +722,7 @@ export default function FlowAiPage() {
             )}
           </div>
 
-          {/* Preset Buttons */}
-          <div className="p-3 border-b border-af-border flex-shrink-0">
-            <p className="text-[10px] uppercase font-bold tracking-wider text-af-text-disabled mb-2">Hızlı Test — Renk Seçin</p>
-            <div className="grid grid-cols-5 gap-1.5">
-              {PRESET_DEMOS.map((d) => (
-                <button
-                  key={d.color}
-                  onClick={() => handlePresetSelect(d)}
-                  title={d.label}
-                  className="flex flex-col items-center gap-1 group"
-                >
-                  <div
-                    className="w-8 h-8 rounded-lg border-2 border-af-border group-hover:border-af-accent transition-all group-hover:scale-110 shadow-md"
-                    style={{ backgroundColor: d.colorProfile.hex }}
-                  />
-                  <span className="text-[9px] text-af-text-disabled group-hover:text-af-accent transition-colors leading-tight text-center">{d.colorProfile.name.split(" ")[0]}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+
 
           {/* Mesajlar */}
           <div className="flex-1 overflow-y-auto p-3 space-y-3">
@@ -767,7 +957,7 @@ export default function FlowAiPage() {
                   onTouchMove={e => handleSliderInput(e.touches[0].clientX)}
                 >
                   {/* After (full width behind) */}
-                  <img src={detectedColor.afterImage} alt="After" className="absolute inset-0 w-full h-full object-cover" />
+                  <img src={enhancedImage || ""} alt="After" className="absolute inset-0 w-full h-full object-cover" />
                   <span className="absolute right-3 top-3 bg-af-accent text-white text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg z-10">
                     AI Stüdyo
                   </span>
@@ -812,7 +1002,7 @@ export default function FlowAiPage() {
                     Yeni Görsel
                   </button>
                   <a
-                    href={detectedColor.afterImage}
+                    href={enhancedImage || ""}
                     download="flow-ai-enhanced.png"
                     className="col-span-1 bg-af-surface border border-af-border hover:border-af-accent/40 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-sm"
                   >
