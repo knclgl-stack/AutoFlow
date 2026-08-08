@@ -324,9 +324,9 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
         ctx.restore()
       }
 
-      // Draw dealer logo/brand on the back wall
+      // Draw dealer logo/brand on the back wall (higher up to prevent roof overlap)
       if (config.bgStyle === "dealer") {
-        const logoY = horizonY - H * 0.28
+        const logoY = H * 0.16
         const logoText = (config.dealerName || "AUTOFLOW").toUpperCase()
         
         if (logoImg) {
@@ -613,18 +613,7 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
       ctx.fill()
       ctx.restore()
 
-      // Dedicated tire contact shadows
-      ctx.save()
-      ctx.fillStyle = "rgba(0, 0, 0, 0.95)"
-      // Left tire contact
-      ctx.beginPath()
-      ctx.ellipse(W / 2 - carW * scale * 0.28, carBottomY, carW * scale * 0.09, carW * scale * 0.015, 0, 0, Math.PI * 2)
-      ctx.fill()
-      // Right tire contact
-      ctx.beginPath()
-      ctx.ellipse(W / 2 + carW * scale * 0.28, carBottomY, carW * scale * 0.09, carW * scale * 0.015, 0, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.restore()
+      // Unified ambient shadows ground the car naturally at all angles without hardcoded stamps.
 
       // 9. Draw original scaled car on top
       ctx.drawImage(img, drawX, drawY, drawW, drawH)
