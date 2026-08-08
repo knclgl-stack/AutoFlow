@@ -662,8 +662,37 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
 
       // Unified ambient shadows ground the car naturally at all angles without hardcoded stamps.
 
+      // 8.5 Light Wrap / Edge Softener (subtle blurred backing to blend cutout borders)
+      ctx.save()
+      ctx.filter = "blur(3px)"
+      ctx.globalAlpha = 0.22
+      ctx.drawImage(img, drawX, drawY, drawW, drawH)
+      ctx.restore()
+      ctx.filter = "none"
+
       // 9. Draw original scaled car on top
       ctx.drawImage(img, drawX, drawY, drawW, drawH)
+
+      // 9.5 Studio Softbox Light Reflections on the car body (masked to car silhouette)
+      ctx.save()
+      ctx.globalCompositeOperation = "source-atop"
+      
+      // Left softbox highlight overlay on the car body
+      const leftLight = ctx.createLinearGradient(drawX, 0, drawX + drawW * 0.35, 0)
+      leftLight.addColorStop(0, "rgba(255, 255, 255, 0.16)")
+      leftLight.addColorStop(1, "rgba(255, 255, 255, 0)")
+      ctx.fillStyle = leftLight
+      ctx.fillRect(drawX, drawY, drawW * 0.35, drawH)
+      
+      // Right softbox highlight overlay on the car body
+      const rightLight = ctx.createLinearGradient(drawX + drawW * 0.65, 0, drawX + drawW, 0)
+      rightLight.addColorStop(0, "rgba(255, 255, 255, 0)")
+      rightLight.addColorStop(1, "rgba(255, 255, 255, 0.16)")
+      ctx.fillStyle = rightLight
+      ctx.fillRect(drawX + drawW * 0.65, drawY, drawW * 0.35, drawH)
+      
+      ctx.restore()
+      ctx.globalCompositeOperation = "source-over" // reset
 
       // 10. Optional License Plate Censor (Draggable & Realistic Turkish Dealer Plate Design)
       if (config.censorPlate) {
@@ -995,6 +1024,7 @@ export default function FlowAiPage() {
     if (transparentCarUrlState) {
       const compositeBase64 = await createStudioComposite(transparentCarUrlState, {
         ...config,
+        censorPlate: false, // Live preview never bakes the plate cover (prevents double plates)
         plateXPercent: px,
         plateYPercent: py,
         plateWPercent: pw,
@@ -1002,6 +1032,24 @@ export default function FlowAiPage() {
       })
       setEnhancedImage(compositeBase64)
     }
+  }
+
+  const handleDownload = async () => {
+    if (!transparentCarUrlState || !showroomConfig) return
+    const finalImage = await createStudioComposite(transparentCarUrlState, {
+      ...showroomConfig,
+      plateXPercent,
+      plateYPercent,
+      plateWPercent,
+      plateHPercent
+    })
+    
+    const a = document.createElement("a")
+    a.href = finalImage
+    a.download = "flow-ai-enhanced.png"
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
   }
 
   /* ── AI İyileştirme ── */
@@ -1038,8 +1086,11 @@ export default function FlowAiPage() {
       setProcessingStep(75)
       setProcessingLabel("Stüdyo ışıkları, ıslak zemin yansımaları ve yumuşak gölgeler render ediliyor...")
 
-      // Stüdyo şablonu ile birleştir
-      const compositeBase64 = await createStudioComposite(transparentCarUrl, showroomConfig!)
+      // Stüdyo şablonu ile birleştir (Live preview does not bake the plate cover)
+      const compositeBase64 = await createStudioComposite(transparentCarUrl, {
+        ...showroomConfig!,
+        censorPlate: false
+      })
       setEnhancedImage(compositeBase64)
       setTransparentCarUrlState(transparentCarUrl)
 
@@ -1211,7 +1262,10 @@ JSON Formatı:
       }
 
       setProcessingStep(85)
-      const compositeBase64 = await createStudioComposite(transparentCarUrlState, revisedConfig)
+      const compositeBase64 = await createStudioComposite(transparentCarUrlState, {
+        ...revisedConfig,
+        censorPlate: false
+      })
       setEnhancedImage(compositeBase64)
       setShowroomConfig(revisedConfig)
 
@@ -1746,7 +1800,7 @@ JSON Formatı:
                         top: `${plateYPercent}%`,
                         width: `${plateWPercent}%`,
                         height: `${plateHPercent}%`,
-                        zIndex: 20
+                        zIndex: 8
                       }}
                     >
                       {/* TR Blue stripe on the left */}
@@ -1784,7 +1838,7 @@ JSON Formatı:
                   {/* Before (clipped left side) */}
                   <div
                     className="absolute inset-0 overflow-hidden pointer-events-none"
-                    style={{ clipPath: `polygon(0 0, ${sliderPos}% 0, ${sliderPos}% 100%, 0 100%)` }}
+                    style={{ clipPath: `polygon(0 0, ${sliderPos}% 0, ${sliderPos}% 100%, 0 100%)`, zIndex: 12 }}
                   >
                     <img src={uploadedImage!} alt="Before" className="absolute inset-0 w-full h-full object-cover" />
                     <span className="absolute left-3 top-3 bg-black/70 text-white text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg">
@@ -1839,13 +1893,12 @@ JSON Formatı:
                   >
                     Yeni Görsel
                   </button>
-                  <a
-                    href={enhancedImage || ""}
-                    download="flow-ai-enhanced.png"
+                  <button
+                    onClick={handleDownload}
                     className="col-span-1 bg-af-surface border border-af-border hover:border-af-accent/40 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-sm"
                   >
                     <Download className="w-4 h-4" /> İndir
-                  </a>
+                  </button>
                   <button
                     onClick={() => addAiMsg("✅ AI stüdyo görseli ilan kataloğunuza kaydedildi! 🎉")}
                     className="col-span-1 bg-af-accent hover:bg-af-accent-hover text-white font-bold py-3 rounded-xl transition-all hover:shadow-xl hover:shadow-af-accent/25 flex items-center justify-center gap-2 text-sm"
