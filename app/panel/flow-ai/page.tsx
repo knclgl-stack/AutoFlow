@@ -739,6 +739,12 @@ export default function FlowAiPage() {
     reader.readAsDataURL(file)
   }
 
+  const selectColorProfile = (profile: CarColor) => {
+    setDetectedColor(profile)
+    setShowroomConfig(makeDefaultConfig(profile))
+    addAiMsg(`🎨 Stüdyo konsepti değiştirildi: **${profile.name}**\n\n• Yeni Stil: ${profile.studioDesc}\n• Işıklandırma: ${profile.lighting}`)
+  }
+
   /* ── AI İyileştirme ── */
   const handleEnhance = async () => {
     if (!uploadedImage || !detectedColor) return
@@ -1308,6 +1314,36 @@ JSON Formatı:
                     </div>
                   )}
                 </div>
+
+                {/* Manuel Renk/Stüdyo Seçimi */}
+                {uploadedImage && !processing && !colorAnalyzing && (
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-3 flex flex-col gap-2">
+                    <p className="text-xs font-bold text-white/80 flex items-center gap-1.5">
+                      <Palette className="w-3.5 h-3.5 text-af-accent" />
+                      Stüdyo Konsepti Seçin (Algılamayı Düzenle):
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {COLOR_PROFILES.map((p) => {
+                        const isSelected = detectedColor?.nameEn === p.nameEn
+                        return (
+                          <button
+                            key={p.nameEn}
+                            onClick={() => selectColorProfile(p)}
+                            className={cn(
+                              "px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all flex items-center gap-1.5",
+                              isSelected 
+                                ? "bg-white text-black border-white scale-102" 
+                                : "bg-black/40 text-white/70 border-white/5 hover:border-white/20"
+                            )}
+                          >
+                            <div className="w-3 h-3 rounded-full border border-white/10 flex-shrink-0" style={{ backgroundColor: p.hex }} />
+                            {p.name.split(" / ")[0]}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Aksiyon butonu */}
                 <button
