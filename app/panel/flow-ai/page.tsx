@@ -582,83 +582,114 @@ export default function FlowAiPage() {
   const handleRevisePromptMode = () => {
     setRevisionMode(true)
     setTimeout(() => chatInputRef.current?.focus(), 50)
-    addAiMsg("💡 Revizyon Modu Aktif!\n\nLütfen stüdyoda değiştirmek istediğiniz rengi veya temayı yazın.\n\nÖrnekler:\n• \"ışıkları kırmızı yap\"\n• \"mavi neon showroom olsun\"\n• \"arka planı siyah yap\"")
+    addAiMsg("💡 Revizyon Modu Aktif!\n\nLütfen stüdyoda değiştirmek istediğiniz rengi veya temayı yazın.\n\nÖrnekler:\n• \"ışıkları kırmızı yap\"\n• \"mavi neon showroom olsun\"\n• \"arka planı biraz daha koyu gri yap\"")
   }
 
   const processRevision = async (prompt: string): Promise<boolean> => {
-    if (!uploadedImage || !transparentCarUrlState) return false
+    if (!uploadedImage || !transparentCarUrlState || !detectedColor) return false
     
     const text = prompt.toLowerCase()
     
-    // Renk eşleme tablosu
-    const colorMap: { [key: string]: { hex: string, bg: string, accent: string, name: string, desc: string } } = {
-      mavi: { hex: "#3399ff", bg: "#050a1a", accent: "#3399ff", name: "Mavi / Lacivert", desc: "Neon Mavi Stüdyo" },
-      lacivert: { hex: "#3399ff", bg: "#050a1a", accent: "#3399ff", name: "Mavi / Lacivert", desc: "Neon Mavi Stüdyo" },
-      kırmızı: { hex: "#cc2200", bg: "#1a0505", accent: "#ff6644", name: "Kırmızı / Bordo", desc: "Sahil Gün Batımı" },
-      bordo: { hex: "#cc2200", bg: "#1a0505", accent: "#ff6644", name: "Kırmızı / Bordo", desc: "Sahil Gün Batımı" },
-      turuncu: { hex: "#cc2200", bg: "#1a0505", accent: "#ff6644", name: "Kırmızı / Bordo", desc: "Sahil Gün Batımı" },
-      siyah: { hex: "#1a1a1a", bg: "#0a0a0a", accent: "#ffffff", name: "Siyah / Antrasit", desc: "Saf Siyah Stüdyo" },
-      karanlık: { hex: "#1a1a1a", bg: "#0a0a0a", accent: "#ffffff", name: "Siyah / Antrasit", desc: "Saf Siyah Stüdyo" },
-      antrasit: { hex: "#1a1a1a", bg: "#0a0a0a", accent: "#ffffff", name: "Siyah / Antrasit", desc: "Saf Siyah Stüdyo" },
-      beyaz: { hex: "#e8e8e8", bg: "#f0f0f0", accent: "#c0a060", name: "Beyaz / Gümüş / Bej", desc: "Beyaz Stüdyo" },
-      aydınlık: { hex: "#e8e8e8", bg: "#f0f0f0", accent: "#c0a060", name: "Beyaz / Gümüş / Bej", desc: "Beyaz Stüdyo" },
-      gri: { hex: "#888888", bg: "#111111", accent: "#aaaaaa", name: "Gümüş / Gri Metalik", desc: "Modern Showroom" },
-      gümüş: { hex: "#888888", bg: "#111111", accent: "#aaaaaa", name: "Gümüş / Gri Metalik", desc: "Modern Showroom" },
-      yeşil: { hex: "#00ff33", bg: "#021a05", accent: "#00ff33", name: "Özel Yeşil", desc: "Yeşil Neon Showroom" },
-      sarı: { hex: "#ffcc00", bg: "#1c1802", accent: "#ffcc00", name: "Özel Sarı", desc: "Altın Sarısı Showroom" },
-      mor: { hex: "#cc00ff", bg: "#17021c", accent: "#cc00ff", name: "Özel Mor", desc: "Mor Neon Showroom" },
-      pembe: { hex: "#ff0077", bg: "#1c020f", accent: "#ff0077", name: "Özel Pembe", desc: "Pembe Neon Showroom" },
-    }
-
-    let matchedColorKey = ""
-    for (const key of Object.keys(colorMap)) {
-      if (text.includes(key)) {
-        matchedColorKey = key
-        break
-      }
-    }
-
-    if (!matchedColorKey) return false
-
-    const colorConfig = colorMap[matchedColorKey]
-    
-    // Yeni renk profili oluştur
-    const newProfile: CarColor = {
-      name: colorConfig.name,
-      nameEn: matchedColorKey,
-      hex: colorConfig.hex,
-      bg: colorConfig.bg,
-      accent: colorConfig.accent,
-      lighting: `Kullanıcı revizyonu ile uygulanan ${colorConfig.desc} ışıkları.`,
-      studioDesc: colorConfig.desc,
-      cssGradient: `from-gray-900 to-black`
-    }
+    // Revizyon modundaysa ya da girdi stüdyo/ışık güncellemesi içeriyorsa işle
+    const isVisualPrompt = text.includes("ışık") || text.includes("renk") || text.includes("arka plan") || 
+                           text.includes("zemin") || text.includes("neon") || text.includes("yap") || 
+                           text.includes("olsun") || text.includes("stüdyo") || text.includes("showroom") ||
+                           revisionMode
+                           
+    if (!isVisualPrompt) return false
 
     setProcessing(true)
-    setProcessingStep(30)
-    setProcessingLabel(`Stüdyo rengi ${colorConfig.name} olarak güncelleniyor...`)
+    setProcessingStep(25)
+    setProcessingLabel("Yapay zeka revizyon isteklerinizi analiz ediyor...")
+
+    // Gemini için sistem yönlendirmeli prompt
+    const systemPrompt = `Kullanıcı mevcut araç fotoğrafının stüdyo arka planını ve ışıklarını özelleştirmek/revize etmek istiyor. 
+Mevcut stüdyo ayarları:
+- Duvar rengi (bg): "${detectedColor.bg}"
+- Işık/Neon vurgu rengi (accent): "${detectedColor.accent}"
+- Stüdyo teması (studioDesc): "${detectedColor.studioDesc}"
+- Işık tasarımı (lighting): "${detectedColor.lighting}"
+
+Kullanıcının yeni talebi: "${prompt}"
+
+Lütfen bu talebe göre yeni stüdyo parametrelerini hesapla ve SADECE aşağıdaki JSON formatında yanıt ver. Yanıtında JSON dışında hiçbir açıklama, kod blok işaretçisi (\`\`\`json vb.) veya ek yazı BULUNMAMALIDIR. Sadece saf JSON string dön:
+{
+  "bg": "duvar için uygun koyu hex rengi (örn: #050a1a, #0a0a0a, #1a0505)",
+  "accent": "neon şeritler ve ışıklar için parlak hex rengi (örn: #3399ff, #ffffff, #ff6644, #00ff33)",
+  "name": "temaya uygun kısa renk/stil adı (örn: Parlak Kırmızı, Gece Mavisi, Karbon Siyah)",
+  "studioDesc": "oluşturulan yeni stüdyo stilinin adı (örn: Neon Mavi Showroom, Gün Batımı Stüdyosu, Minimalist Siyah)",
+  "lighting": "ışık tasarımının kısa açıklaması (örn: Kırmızı neon aksan şeritleri ve yumuşak tepe softbox)"
+}`
 
     try {
-      setProcessingStep(70)
-      const compositeBase64 = await createStudioComposite(transparentCarUrlState, newProfile)
+      const res = await fetch("/api/flow-ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: systemPrompt, history: [], apiKey: userApiKey || undefined })
+      })
+      const data = await res.json()
+      
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Gemini API hatası")
+      }
+
+      let replyText = (data.reply || "").trim()
+      // JSON dışı olabilecek işaretçileri temizle
+      if (replyText.startsWith("```json")) {
+        replyText = replyText.substring(7)
+      }
+      if (replyText.startsWith("```")) {
+        replyText = replyText.substring(3)
+      }
+      if (replyText.endsWith("```")) {
+        replyText = replyText.substring(0, replyText.length - 3)
+      }
+      replyText = replyText.trim()
+
+      const parsed = JSON.parse(replyText)
+      
+      // Gerekli alanların kontrolü
+      if (!parsed.bg || !parsed.accent || !parsed.studioDesc) {
+        throw new Error("Geçersiz JSON yapısı")
+      }
+
+      setProcessingStep(60)
+      setProcessingLabel("Yeni showroom tasarımı oluşturuluyor...")
+
+      const revisedProfile: CarColor = {
+        name: parsed.name || "Özel Revizyon",
+        nameEn: "custom-revision",
+        hex: parsed.accent,
+        bg: parsed.bg,
+        accent: parsed.accent,
+        lighting: parsed.lighting || "Özelleştirilmiş ışıklandırma",
+        studioDesc: parsed.studioDesc,
+        cssGradient: `from-gray-900 to-black`
+      }
+
+      setProcessingStep(85)
+      const compositeBase64 = await createStudioComposite(transparentCarUrlState, revisedProfile)
       setEnhancedImage(compositeBase64)
-      setDetectedColor(newProfile)
+      setDetectedColor(revisedProfile)
 
       setProcessingStep(100)
       setProcessing(false)
       setEnhanceSuccess(true)
       setSliderPos(50)
+      setRevisionMode(false) // revizyon tamamlandı
 
+      // Mesajları ekle
       setMesajlar(prev => [
         ...prev,
         { id: Date.now() + Math.random(), sender: "user", text: prompt, timestamp: now() }
       ])
-      addAiMsg(`🎨 Stüdyo ortamı revize edildi!\n\n• Yeni tema: **${colorConfig.desc}**\n• Işık rengi: **${colorConfig.name}**\n\nSonucu öncesi/sonrası slider'ı üzerinden inceleyebilirsiniz.`)
+      addAiMsg(`🎨 Görseliniz revize edildi!\n\n• Yeni Stil: **${revisedProfile.studioDesc}**\n• Açıklama: *${revisedProfile.lighting}*\n\nSonucu öncesi/sonrası slider'ı ile inceleyebilirsiniz.`)
       return true
     } catch (err: any) {
-      console.error("Revizyon hatası:", err)
+      console.error("Revizyon işleme hatası:", err)
       setProcessing(false)
-      alert(`Stüdyo revize edilirken bir hata oluştu: ${err.message || err}`)
+      // Hata durumunda chat'e bilgi ver
+      addAiMsg(`⚠️ Revizyon isteğiniz yorumlanamadı.\n\nİpucu: \"ışıkları mavi yap\", \"arka planı beyaz stüdyo yap\" gibi belirgin direktifler yazabilirsiniz.`)
       return true
     }
   }
