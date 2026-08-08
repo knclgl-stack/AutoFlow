@@ -412,6 +412,9 @@ export default function FlowAiPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const chatInputRef = useRef<HTMLInputElement>(null)
+  const [revisionMode, setRevisionMode] = useState(false)
+  const [transparentCarUrlState, setTransparentCarUrlState] = useState<string | null>(null)
 
   function now() {
     return new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })
@@ -503,6 +506,11 @@ export default function FlowAiPage() {
       setEnhancedImage(null)
       setDetectedColor(null)
       setColorSwatchVisible(false)
+      setRevisionMode(false)
+      if (transparentCarUrlState) {
+        URL.revokeObjectURL(transparentCarUrlState)
+        setTransparentCarUrlState(null)
+      }
       const userMsg: Mesaj = {
         id: Date.now() + Math.random(), sender: "user",
         text: `📸 "${file.name}" yüklendi — renk analizi başlatılıyor...`,
@@ -552,6 +560,7 @@ export default function FlowAiPage() {
       // Stüdyo şablonu ile birleştir
       const compositeBase64 = await createStudioComposite(transparentCarUrl, detectedColor)
       setEnhancedImage(compositeBase64)
+      setTransparentCarUrlState(transparentCarUrl)
 
       setProcessingStep(100)
       setProcessingLabel("Tamamlandı!")
@@ -562,13 +571,95 @@ export default function FlowAiPage() {
 
       let successMsg = `✅ İşlem başarıyla tamamlandı!\n\nAracınızın orijinal hatları ve kalitesi korunarak "${detectedColor.studioDesc}" ortamı oluşturuldu.\n\n• Arka plan: ${detectedColor.name} uyumlu stüdyo\n• Zemin: Gerçekçi araba yansıması ve gölgesi\n• Işıklandırma: Yumuşak softbox aydınlatması\n\nÖncesi/sonrası için slider'ı kaydırabilirsiniz!`
       addAiMsg(successMsg)
-
-      // Belleği temizle
-      URL.revokeObjectURL(transparentCarUrl)
     } catch (err: any) {
       console.error("Yapay zeka stüdyo hatası:", err)
       setProcessing(false)
       alert(`Fotoğraf işlenirken bir hata oluştu. Lütfen görselin kalitesini veya internet bağlantınızı kontrol edin. Hata: ${err.message || err}`)
+    }
+  }
+
+  /* ── Görsel Revize Etme (Prompt ile) ── */
+  const handleRevisePromptMode = () => {
+    setRevisionMode(true)
+    setTimeout(() => chatInputRef.current?.focus(), 50)
+    addAiMsg("💡 Revizyon Modu Aktif!\n\nLütfen stüdyoda değiştirmek istediğiniz rengi veya temayı yazın.\n\nÖrnekler:\n• \"ışıkları kırmızı yap\"\n• \"mavi neon showroom olsun\"\n• \"arka planı siyah yap\"")
+  }
+
+  const processRevision = async (prompt: string): Promise<boolean> => {
+    if (!uploadedImage || !transparentCarUrlState) return false
+    
+    const text = prompt.toLowerCase()
+    
+    // Renk eşleme tablosu
+    const colorMap: { [key: string]: { hex: string, bg: string, accent: string, name: string, desc: string } } = {
+      mavi: { hex: "#3399ff", bg: "#050a1a", accent: "#3399ff", name: "Mavi / Lacivert", desc: "Neon Mavi Stüdyo" },
+      lacivert: { hex: "#3399ff", bg: "#050a1a", accent: "#3399ff", name: "Mavi / Lacivert", desc: "Neon Mavi Stüdyo" },
+      kırmızı: { hex: "#cc2200", bg: "#1a0505", accent: "#ff6644", name: "Kırmızı / Bordo", desc: "Sahil Gün Batımı" },
+      bordo: { hex: "#cc2200", bg: "#1a0505", accent: "#ff6644", name: "Kırmızı / Bordo", desc: "Sahil Gün Batımı" },
+      turuncu: { hex: "#cc2200", bg: "#1a0505", accent: "#ff6644", name: "Kırmızı / Bordo", desc: "Sahil Gün Batımı" },
+      siyah: { hex: "#1a1a1a", bg: "#0a0a0a", accent: "#ffffff", name: "Siyah / Antrasit", desc: "Saf Siyah Stüdyo" },
+      karanlık: { hex: "#1a1a1a", bg: "#0a0a0a", accent: "#ffffff", name: "Siyah / Antrasit", desc: "Saf Siyah Stüdyo" },
+      antrasit: { hex: "#1a1a1a", bg: "#0a0a0a", accent: "#ffffff", name: "Siyah / Antrasit", desc: "Saf Siyah Stüdyo" },
+      beyaz: { hex: "#e8e8e8", bg: "#f0f0f0", accent: "#c0a060", name: "Beyaz / Gümüş / Bej", desc: "Beyaz Stüdyo" },
+      aydınlık: { hex: "#e8e8e8", bg: "#f0f0f0", accent: "#c0a060", name: "Beyaz / Gümüş / Bej", desc: "Beyaz Stüdyo" },
+      gri: { hex: "#888888", bg: "#111111", accent: "#aaaaaa", name: "Gümüş / Gri Metalik", desc: "Modern Showroom" },
+      gümüş: { hex: "#888888", bg: "#111111", accent: "#aaaaaa", name: "Gümüş / Gri Metalik", desc: "Modern Showroom" },
+      yeşil: { hex: "#00ff33", bg: "#021a05", accent: "#00ff33", name: "Özel Yeşil", desc: "Yeşil Neon Showroom" },
+      sarı: { hex: "#ffcc00", bg: "#1c1802", accent: "#ffcc00", name: "Özel Sarı", desc: "Altın Sarısı Showroom" },
+      mor: { hex: "#cc00ff", bg: "#17021c", accent: "#cc00ff", name: "Özel Mor", desc: "Mor Neon Showroom" },
+      pembe: { hex: "#ff0077", bg: "#1c020f", accent: "#ff0077", name: "Özel Pembe", desc: "Pembe Neon Showroom" },
+    }
+
+    let matchedColorKey = ""
+    for (const key of Object.keys(colorMap)) {
+      if (text.includes(key)) {
+        matchedColorKey = key
+        break
+      }
+    }
+
+    if (!matchedColorKey) return false
+
+    const colorConfig = colorMap[matchedColorKey]
+    
+    // Yeni renk profili oluştur
+    const newProfile: CarColor = {
+      name: colorConfig.name,
+      nameEn: matchedColorKey,
+      hex: colorConfig.hex,
+      bg: colorConfig.bg,
+      accent: colorConfig.accent,
+      lighting: `Kullanıcı revizyonu ile uygulanan ${colorConfig.desc} ışıkları.`,
+      studioDesc: colorConfig.desc,
+      cssGradient: `from-gray-900 to-black`
+    }
+
+    setProcessing(true)
+    setProcessingStep(30)
+    setProcessingLabel(`Stüdyo rengi ${colorConfig.name} olarak güncelleniyor...`)
+
+    try {
+      setProcessingStep(70)
+      const compositeBase64 = await createStudioComposite(transparentCarUrlState, newProfile)
+      setEnhancedImage(compositeBase64)
+      setDetectedColor(newProfile)
+
+      setProcessingStep(100)
+      setProcessing(false)
+      setEnhanceSuccess(true)
+      setSliderPos(50)
+
+      setMesajlar(prev => [
+        ...prev,
+        { id: Date.now() + Math.random(), sender: "user", text: prompt, timestamp: now() }
+      ])
+      addAiMsg(`🎨 Stüdyo ortamı revize edildi!\n\n• Yeni tema: **${colorConfig.desc}**\n• Işık rengi: **${colorConfig.name}**\n\nSonucu öncesi/sonrası slider'ı üzerinden inceleyebilirsiniz.`)
+      return true
+    } catch (err: any) {
+      console.error("Revizyon hatası:", err)
+      setProcessing(false)
+      alert(`Stüdyo revize edilirken bir hata oluştu: ${err.message || err}`)
+      return true
     }
   }
 
@@ -579,6 +670,15 @@ export default function FlowAiPage() {
     if (dbPlan === "Essential") {
       alert("Flow AI Asistanı özelliğini kullanabilmek için lütfen Professional veya Elite plana geçiş yapın.")
       return
+    }
+
+    // Revizyon modu aktifse ve geçerli bir revizyon promptu ise işle
+    if (enhanceSuccess && transparentCarUrlState) {
+      const isRevised = await processRevision(text)
+      if (isRevised) {
+        setInputText("")
+        return
+      }
     }
 
     const userMsg: Mesaj = { id: Date.now() + Math.random(), sender: "user", text, timestamp: now() }
@@ -779,10 +879,11 @@ export default function FlowAiPage() {
           {/* Input */}
           <form id="flow-ai-form" onSubmit={handleSend} className="p-3 border-t border-af-border flex gap-2 flex-shrink-0">
             <input
+              ref={chatInputRef}
               value={inputText}
               onChange={e => setInputText(e.target.value)}
               disabled={isTyping}
-              placeholder={isTyping ? "Flow AI yazıyor..." : "Herhangi bir şey sorun..."}
+              placeholder={isTyping ? "Flow AI yazıyor..." : revisionMode ? "Örn: 'ışıkları kırmızı yap', 'mavi neon stüdyo'..." : "Herhangi bir şey sorun..."}
               className="flex-1 bg-af-surface-2 border border-af-border text-af-text placeholder:text-af-text-disabled rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-af-accent transition-colors disabled:opacity-60"
             />
             <button
@@ -993,10 +1094,28 @@ export default function FlowAiPage() {
                   </div>
                 </div>
 
+                {/* Revize Et Butonu */}
+                <button
+                  onClick={handleRevisePromptMode}
+                  className="w-full flex items-center justify-center gap-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold py-3.5 rounded-xl transition-all hover:shadow-lg hover:shadow-amber-500/25 text-sm mb-3"
+                >
+                  <Sparkles className="w-4 h-4" /> Revize Et (Yazı ile Düzenle)
+                </button>
+
                 {/* İndirme / Yeni */}
                 <div className="grid grid-cols-3 gap-3">
                   <button
-                    onClick={() => { setEnhanceSuccess(false); setUploadedImage(null); setDetectedColor(null); setColorSwatchVisible(false) }}
+                    onClick={() => {
+                      setEnhanceSuccess(false)
+                      setUploadedImage(null)
+                      setDetectedColor(null)
+                      setColorSwatchVisible(false)
+                      setRevisionMode(false)
+                      if (transparentCarUrlState) {
+                        URL.revokeObjectURL(transparentCarUrlState)
+                        setTransparentCarUrlState(null)
+                      }
+                    }}
                     className="col-span-1 border border-af-border hover:bg-af-surface-2 text-af-text-secondary hover:text-white font-semibold py-3 rounded-xl transition-colors text-sm"
                   >
                     Yeni Görsel
