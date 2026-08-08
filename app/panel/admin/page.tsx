@@ -38,13 +38,18 @@ export default function AdminPage() {
             .order("created_at", { ascending: false }),
           supabase
             .from("qr_events")
-            .select("*")
+            .select("device_type, timestamp")
             .order("timestamp", { ascending: false })
         ])
+        
+        const mappedScans = (sResult.data || []).map((scan: any) => ({
+          ...scan,
+          created_at: scan.timestamp || scan.created_at
+        }))
 
         if (gResult.data) setGalleries(gResult.data)
         if (vResult.data) setVehicles(vResult.data)
-        if (sResult.data) setScans(sResult.data)
+        if (sResult.data) setScans(mappedScans)
       } catch (err) {
         console.error("Yönetici paneli veri çekme hatası:", err)
       } finally {
