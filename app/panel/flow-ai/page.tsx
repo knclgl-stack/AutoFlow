@@ -48,6 +48,9 @@ interface ShowroomConfig {
   showNeonStrips: boolean
   showSpotlight: boolean
   showFloorGrid: boolean
+  bgStyle: "classic" | "garage" | "sunset" | "minimalist" | "scifi"
+  censorPlate: boolean
+  lightPanelOpacity: number
   name: string
   studioDesc: string
   lighting: string
@@ -201,15 +204,59 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
       // 1. Showroom Wall background gradient (dark to wall color)
       const horizonY = H * 0.62
 
-      const wallGrad = ctx.createLinearGradient(0, 0, 0, horizonY)
-      wallGrad.addColorStop(0, "#050507")
-      wallGrad.addColorStop(0.7, "#0c0c10")
-      wallGrad.addColorStop(1, config.bg)
-      ctx.fillStyle = wallGrad
-      ctx.fillRect(0, 0, W, horizonY)
+      if (config.bgStyle === "sunset") {
+        const wallGrad = ctx.createLinearGradient(0, 0, 0, horizonY)
+        wallGrad.addColorStop(0, "#080210") // twilight purple
+        wallGrad.addColorStop(0.4, "#2e061b") // magenta tint
+        wallGrad.addColorStop(0.7, "#a62429") // sunset red
+        wallGrad.addColorStop(1, "#d98b1e") // sunset orange/yellow
+        ctx.fillStyle = wallGrad
+        ctx.fillRect(0, 0, W, horizonY)
+      } else {
+        const wallGrad = ctx.createLinearGradient(0, 0, 0, horizonY)
+        wallGrad.addColorStop(0, "#050507")
+        wallGrad.addColorStop(0.7, "#0c0c10")
+        wallGrad.addColorStop(1, config.bg)
+        ctx.fillStyle = wallGrad
+        ctx.fillRect(0, 0, W, horizonY)
+      }
 
-      // 2. Glowing LED Lines / Neon strips on the Wall (futuristic showroom look)
-      if (config.showNeonStrips) {
+      // Draw garage style pillars on the wall
+      if (config.bgStyle === "garage") {
+        ctx.save()
+        ctx.fillStyle = "rgba(0, 0, 0, 0.35)"
+        const pillarWidth = W * 0.08
+        const pillarSpacing = W * 0.25
+        for (let x = pillarSpacing / 2; x < W; x += pillarSpacing) {
+          ctx.fillRect(x, 0, pillarWidth, horizonY)
+          ctx.fillStyle = "rgba(255, 255, 255, 0.02)"
+          ctx.fillRect(x + pillarWidth - 2, 0, 2, horizonY)
+          ctx.fillStyle = "rgba(0, 0, 0, 0.35)"
+        }
+        ctx.restore()
+      }
+
+      // Draw Sci-Fi intersecting laser lines
+      if (config.bgStyle === "scifi") {
+        ctx.save()
+        ctx.strokeStyle = `rgba(${accentRgb}, 0.5)`
+        ctx.lineWidth = Math.max(2.5, H * 0.005)
+        ctx.shadowColor = `rgba(${accentRgb}, 0.8)`
+        ctx.shadowBlur = 15
+        
+        ctx.beginPath()
+        ctx.moveTo(0, 0)
+        ctx.lineTo(W * 0.45, horizonY)
+        ctx.moveTo(W, 0)
+        ctx.lineTo(W * 0.55, horizonY)
+        ctx.moveTo(0, horizonY - H * 0.3)
+        ctx.lineTo(W, horizonY - H * 0.3)
+        ctx.stroke()
+        ctx.restore()
+      }
+
+      // 2. Glowing LED Lines / Neon strips on the Wall (classic style only)
+      if (config.showNeonStrips && config.bgStyle === "classic") {
         ctx.save()
         ctx.strokeStyle = `rgba(${accentRgb}, 0.4)`
         ctx.lineWidth = Math.max(2, H * 0.005)
@@ -232,9 +279,15 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
 
       // 3. Showroom Floor background gradient (reflective showroom floor)
       const floorGrad = ctx.createLinearGradient(0, horizonY, 0, H)
-      floorGrad.addColorStop(0, config.floorColor)
-      floorGrad.addColorStop(0.3, "#060608")
-      floorGrad.addColorStop(1, "#020203")
+      if (config.bgStyle === "sunset") {
+        floorGrad.addColorStop(0, "#c46a12") // warm sunset reflection color
+        floorGrad.addColorStop(0.3, "#1a0803")
+        floorGrad.addColorStop(1, "#030202")
+      } else {
+        floorGrad.addColorStop(0, config.floorColor)
+        floorGrad.addColorStop(0.3, "#060608")
+        floorGrad.addColorStop(1, "#020203")
+      }
       ctx.fillStyle = floorGrad
       ctx.fillRect(0, horizonY, W, H - horizonY)
 
@@ -267,21 +320,23 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
       }
 
       // 5. Overhead Light Panels (Reflected on the Floor)
-      // Left panel reflection
-      const leftRef = ctx.createLinearGradient(W * 0.25, horizonY, W * 0.25, H)
-      leftRef.addColorStop(0, `rgba(${leftPanelRgb}, 0.12)`)
-      leftRef.addColorStop(0.5, `rgba(${leftPanelRgb}, 0.04)`)
-      leftRef.addColorStop(1, "rgba(0, 0, 0, 0)")
-      ctx.fillStyle = leftRef
-      ctx.fillRect(W * 0.15, horizonY, W * 0.2, H - horizonY)
+      if (config.lightPanelOpacity > 0) {
+        // Left panel reflection
+        const leftRef = ctx.createLinearGradient(W * 0.25, horizonY, W * 0.25, H)
+        leftRef.addColorStop(0, `rgba(${leftPanelRgb}, ${config.lightPanelOpacity})`)
+        leftRef.addColorStop(0.5, `rgba(${leftPanelRgb}, ${config.lightPanelOpacity * 0.3})`)
+        leftRef.addColorStop(1, "rgba(0, 0, 0, 0)")
+        ctx.fillStyle = leftRef
+        ctx.fillRect(W * 0.15, horizonY, W * 0.2, H - horizonY)
 
-      // Right panel reflection
-      const rightRef = ctx.createLinearGradient(W * 0.75, horizonY, W * 0.75, H)
-      rightRef.addColorStop(0, `rgba(${rightPanelRgb}, 0.12)`)
-      rightRef.addColorStop(0.5, `rgba(${rightPanelRgb}, 0.04)`)
-      rightRef.addColorStop(1, "rgba(0, 0, 0, 0)")
-      ctx.fillStyle = rightRef
-      ctx.fillRect(W * 0.65, horizonY, W * 0.2, H - horizonY)
+        // Right panel reflection
+        const rightRef = ctx.createLinearGradient(W * 0.75, horizonY, W * 0.75, H)
+        rightRef.addColorStop(0, `rgba(${rightPanelRgb}, ${config.lightPanelOpacity})`)
+        rightRef.addColorStop(0.5, `rgba(${rightPanelRgb}, ${config.lightPanelOpacity * 0.3})`)
+        rightRef.addColorStop(1, "rgba(0, 0, 0, 0)")
+        ctx.fillStyle = rightRef
+        ctx.fillRect(W * 0.65, horizonY, W * 0.2, H - horizonY)
+      }
 
       // 6. Scan bounding box of the car
       const scanCanvas = document.createElement("canvas")
@@ -403,6 +458,51 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
       // 9. Draw original car on top
       ctx.drawImage(img, 0, 0, W, H)
 
+      // 10. Optional License Plate Censor
+      if (config.censorPlate) {
+        ctx.save()
+        const plateW = carW * 0.18
+        const plateH = plateW * 0.22
+        const plateX = carCX - plateW / 2
+        const plateY = carBottomY - carH * 0.13
+
+        // Draw plate shadow
+        ctx.shadowColor = "rgba(0, 0, 0, 0.4)"
+        ctx.shadowBlur = 6
+        ctx.shadowOffsetY = 2
+
+        // Draw plate background (glossy black plate)
+        ctx.fillStyle = "#111112"
+        ctx.strokeStyle = "#333336"
+        ctx.lineWidth = 1.5
+        
+        // Rounded rect for plate
+        const radius = Math.max(2, plateH * 0.1)
+        ctx.beginPath()
+        ctx.roundRect(plateX, plateY, plateW, plateH, radius)
+        ctx.fill()
+        ctx.stroke()
+        ctx.shadowBlur = 0 // reset shadow
+
+        // Inner glowing border or accent line
+        ctx.strokeStyle = `rgba(${accentRgb}, 0.6)`
+        ctx.lineWidth = 1
+        ctx.beginPath()
+        ctx.roundRect(plateX + 1.5, plateY + 1.5, plateW - 3, plateH - 3, radius)
+        ctx.stroke()
+
+        // Write "AUTOFLOW" inside the plate
+        ctx.fillStyle = "#ffffff"
+        const fontSize = Math.max(7, Math.floor(plateH * 0.55))
+        ctx.font = `bold ${fontSize}px sans-serif`
+        ctx.textAlign = "center"
+        ctx.textBaseline = "middle"
+        // Let's letter-space it a bit
+        const text = "AUTOFLOW"
+        ctx.fillText(text, carCX, plateY + plateH / 2 + 1)
+        ctx.restore()
+      }
+
       resolve(canvas.toDataURL("image/png"))
     }
 
@@ -425,6 +525,9 @@ function makeDefaultConfig(colorProfile: CarColor): ShowroomConfig {
     showNeonStrips: true,
     showSpotlight: true,
     showFloorGrid: true,
+    bgStyle: "classic",
+    censorPlate: false,
+    lightPanelOpacity: 0.12,
     name: colorProfile.name,
     studioDesc: colorProfile.studioDesc,
     lighting: colorProfile.lighting
@@ -658,6 +761,7 @@ export default function FlowAiPage() {
                            text.includes("olsun") || text.includes("stüdyo") || text.includes("showroom") ||
                            text.includes("kapat") || text.includes("aç") || text.includes("yansıma") ||
                            text.includes("karo") || text.includes("grid") || text.includes("panel") ||
+                           text.includes("plaka") || text.includes("sansür") || text.includes("gizle") ||
                            revisionMode
                            
     if (!isVisualPrompt) return false
@@ -681,17 +785,30 @@ Mevcut stüdyo ayarları:
 - Neon şeritler açık mı (showNeonStrips): ${showroomConfig.showNeonStrips} (true/false)
 - Tepe spotlight açık mı (showSpotlight): ${showroomConfig.showSpotlight} (true/false)
 - Zemin karo çizgileri açık mı (showFloorGrid): ${showroomConfig.showFloorGrid} (true/false)
+- Arka plan stili (bgStyle): "${showroomConfig.bgStyle}" ("classic", "garage", "sunset", "minimalist", "scifi")
+- Plakayı sansürleme (censorPlate): ${showroomConfig.censorPlate} (true/false)
+- Işık panel yansımalarının görünürlüğü (lightPanelOpacity): ${showroomConfig.lightPanelOpacity} (0.0 ile 0.5 arası)
 
 Kullanıcının yeni talebi: "${prompt}"
 
 Lütfen bu talebe göre yeni stüdyo parametrelerini hesapla ve SADECE aşağıdaki JSON formatında yanıt ver. Yanıtında JSON dışında hiçbir açıklama, kod blok işaretçisi (\`\`\`json vb.) veya ek yazı BULUNMAMALIDIR. Sadece saf JSON string dön. Eğer kullanıcı bazı özellikleri değiştirmek istemediyse mevcut değerlerini aynen koru.
+
+Kritik Kurallar:
+1. Kullanıcı "plakayı kapat", "plakayı yok et", "plakayı gizle" veya "plakayı sansürle" gibi bir istekte bulunursa "censorPlate" değerini true yap.
+2. Kullanıcı "yansımaları kaldır", "yansımaları sil" veya "yansıma istemiyorum" derse "reflectionOpacity" değerini 0.0 ve "lightPanelOpacity" değerini 0.0 yap.
+3. Kullanıcı "arka planı değiştir" veya "farklı arka plan", "sunset", "garage", "minimalist", "scifi" tarzı şeyler isterse "bgStyle" özelliğini uygun tarzla güncelle.
+- "classic": Klasik yatay neonlu showroom
+- "garage": Beton direkli endüstriyel garaj stili
+- "sunset": Gün batımı sahil manzaralı arka plan
+- "minimalist": Neonlar ve ışıklar olmayan düz sade galeri
+- "scifi": Çapraz lazer çizgili fütüristik siberpunk garajı
 
 JSON Formatı:
 {
   "bg": "duvar için hex rengi (örn: #050a1a, #0a0a0a, #1a0505)",
   "floorColor": "zemin için hex rengi (örn: #020203, #050a1a)",
   "accent": "neon şeritler için parlak hex rengi (örn: #3399ff, #ff6644, #00ff33)",
-  "spotlightColor": "tepe spotlight için parlak hex rengi (örn: #ffffff, #ffff00)",
+  "spotlightColor": "tepe spotlight için parlak hex rengi",
   "leftPanelColor": "sol panel yansıması için parlak hex rengi",
   "rightPanelColor": "sağ panel yansıması için parlak hex rengi",
   "gridColor": "zemin karo çizgileri için hex rengi",
@@ -700,6 +817,9 @@ JSON Formatı:
   "showNeonStrips": true,
   "showSpotlight": true,
   "showFloorGrid": true,
+  "bgStyle": "classic",
+  "censorPlate": false,
+  "lightPanelOpacity": 0.12,
   "name": "temaya uygun kısa renk adı",
   "studioDesc": "oluşturulan yeni stüdyo stilinin adı",
   "lighting": "ışık tasarımının kısa açıklaması"
@@ -753,6 +873,9 @@ JSON Formatı:
         showNeonStrips: parsed.showNeonStrips !== undefined ? parsed.showNeonStrips : true,
         showSpotlight: parsed.showSpotlight !== undefined ? parsed.showSpotlight : true,
         showFloorGrid: parsed.showFloorGrid !== undefined ? parsed.showFloorGrid : true,
+        bgStyle: parsed.bgStyle || "classic",
+        censorPlate: parsed.censorPlate !== undefined ? parsed.censorPlate : false,
+        lightPanelOpacity: typeof parsed.lightPanelOpacity === "number" ? parsed.lightPanelOpacity : 0.12,
         name: parsed.name || "Özel Revizyon",
         studioDesc: parsed.studioDesc,
         lighting: parsed.lighting || "Özelleştirilmiş showroom aydınlatması"
