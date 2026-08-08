@@ -413,7 +413,25 @@ export function AdminClient({ initialGalleries, initialVehicles, initialScans }:
     setIslemde(id)
     setMesaj(null)
 
+    const targetVehicle = vehicles.find(v => v.id === id)
+    const photosToDelete = targetVehicle?.fotograflar || []
+
     try {
+      // 1. Storage'dan fotoğrafları temizle
+      if (photosToDelete.length > 0) {
+        const paths = photosToDelete
+          .map((url: string) => {
+            const parts = url.split("/storage/v1/object/public/araclar/")
+            return parts.length > 1 ? parts[1] : null
+          })
+          .filter((p: string | null): p is string => !!p)
+
+        if (paths.length > 0) {
+          await supabase.storage.from("araclar").remove(paths)
+        }
+      }
+
+      // 2. Veritabanından aracı sil
       const { error } = await supabase
         .from("araclar")
         .delete()
@@ -437,14 +455,41 @@ export function AdminClient({ initialGalleries, initialVehicles, initialScans }:
     setIslemde(userId)
     setMesaj(null)
 
+    const galleryVehicles = vehicles.filter(v => v.user_id === userId)
+    const photosToDelete = galleryVehicles.flatMap(v => v.fotograflar || [])
+    
+    const targetGallery = galleries.find(g => g.user_id === userId)
+    const logoUrl = targetGallery?.logo_url
+
+    const pathsToDelete: string[] = []
+
+    if (logoUrl) {
+      const logoParts = logoUrl.split("/storage/v1/object/public/araclar/")
+      if (logoParts.length > 1) {
+        pathsToDelete.push(logoParts[1])
+      }
+    }
+
+    photosToDelete.forEach((url) => {
+      const parts = url.split("/storage/v1/object/public/araclar/")
+      if (parts.length > 1) {
+        pathsToDelete.push(parts[1])
+      }
+    })
+
     try {
-      // 1. Önce araçları sil (foreign key varsa korumak için)
+      // 1. Storage'dan logo ve tüm araç fotoğraflarını temizle
+      if (pathsToDelete.length > 0) {
+        await supabase.storage.from("araclar").remove(pathsToDelete)
+      }
+
+      // 2. Önce araçları sil (foreign key varsa korumak için)
       await supabase
         .from("araclar")
         .delete()
         .eq("user_id", userId)
 
-      // 2. Galeriyi sil
+      // 3. Galeriyi sil
       const { error } = await supabase
         .from("galeri_profilleri")
         .delete()

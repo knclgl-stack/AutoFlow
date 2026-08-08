@@ -42,7 +42,25 @@ export default function AraclarPage() {
     const confirmDelete = window.confirm("Bu aracı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.")
     if (!confirmDelete) return
 
+    const targetArac = araclar.find((a) => a.id === id)
+    const photosToDelete = targetArac?.fotograflar || []
+
     try {
+      // 1. Storage'dan fotoğrafları temizle
+      if (photosToDelete.length > 0) {
+        const paths = photosToDelete
+          .map((url) => {
+            const parts = url.split("/storage/v1/object/public/araclar/")
+            return parts.length > 1 ? parts[1] : null
+          })
+          .filter((p): p is string => !!p)
+
+        if (paths.length > 0) {
+          await supabase.storage.from("araclar").remove(paths)
+        }
+      }
+
+      // 2. Veritabanından aracı sil
       const { error } = await supabase
         .from("araclar")
         .delete()
