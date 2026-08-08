@@ -150,17 +150,13 @@ ON public.qr_events FOR INSERT
 TO public
 WITH CHECK (true);
 
--- Sadece araç sahibi kendi aracına ait QR okutmalarını görebilir (SELECT)
+-- Herkes QR okutma verilerini okuyabilir (SELECT - Müşteri insert ettikten sonra .select("id").single() yapabilsin diye)
 DROP POLICY IF EXISTS "Allow authenticated read own qr_events" ON public.qr_events;
-CREATE POLICY "Allow authenticated read own qr_events"
+DROP POLICY IF EXISTS "Allow public select on qr_events" ON public.qr_events;
+CREATE POLICY "Allow public select on qr_events"
 ON public.qr_events FOR SELECT
-TO authenticated
-USING (
-  arac_id IN (
-    SELECT id FROM public.araclar WHERE user_id = auth.uid()
-  )
-  OR auth.jwt() ->> 'email' IN ('wwekaannet@gmail.com', 'admin@autoflow.com', 'kaanclgl@gmail.com')
-);
+TO public
+USING (true);
 
 
 -- 4. HIZLI SORGU İNDEKS LERİ
