@@ -67,29 +67,68 @@ export async function POST(req: NextRequest) {
     let lastErrorMsg = ""
 
     // Sırasıyla denenecek model isimleri
-    const modelsToTry = ["gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-1.5-flash-8b"]
+    const modelsToTry = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b"]
+
+    // Sohbet geçmişini Gemini API formatına dönüştür (roles: user, model)
+    const contents = [
+      ...formattedHistory.map((h: any) => ({
+        role: h.role,
+        parts: h.parts
+      })),
+      {
+        role: "user",
+        parts: [{ text: message }]
+      }
+    ]
 
     for (const modelName of modelsToTry) {
       try {
-        console.log(`Attempting Gemini model: ${modelName}`)
-        const model = genAI.getGenerativeModel({
-          model: modelName,
-          systemInstruction: SYSTEM_PROMPT,
-        })
-        const chat = model.startChat({ history: formattedHistory })
-        const result = await chat.sendMessage(message)
-        replyText = result.response.text()
+        console.log(`Direct fetch attempt for Gemini model: ${modelName}`)
         
-        // Eğer buraya ulaştıysa başarıyla yanıt alınmıştır, döngüden çık
-        break
+        // Google Gemini REST API endpoint
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${key}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              contents: contents,
+              systemInstruction: {
+                parts: [{ text: SYSTEM_PROMPT }]
+              },
+              generationConfig: {
+                temperature: 0.7,
+                maxOutputTokens: 800,
+              }
+            })
+          }
+        )
+
+        const responseData = await response.json()
+
+        if (!response.ok) {
+          throw new Error(responseData.error?.message || `HTTP error ${response.status}`)
+        }
+
+        const candidateText = responseData.candidates?.[0]?.content?.parts?.[0]?.text
+        if (candidateText) {
+          replyText = candidateText
+          break
+        } else {
+          throw new Error("API response did not contain text candidates")
+        }
       } catch (err: any) {
-        console.warn(`Model ${modelName} failed:`, err.message)
+        console.warn(`Direct fetch model ${modelName} failed:`, err.message)
         lastErrorMsg = err.message || "Bilinmeyen hata"
       }
     }
 
     if (!replyText) {
-      throw new Error(lastErrorMsg || "Tüm Gemini modelleri başarısız oldu.")
+      return NextResponse.json({ 
+        error: `Yapay zeka servisine bağlanılamadı: ${lastErrorMsg}. Lütfen Google AI Studio'dan (aistudio.google.com) aldığınız API anahtarını kontrol edin ve projenizde Generative Language API'nin etkinleştirildiğinden emin olun.` 
+      }, { status: 500 })
     }
 
     return NextResponse.json({ reply: replyText })
