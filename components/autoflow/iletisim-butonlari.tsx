@@ -65,7 +65,7 @@ export function IletisimButonlari({ arac, galeri, variant = "sticky", eventId }:
 
   if (variant === "sticky") {
     return (
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-af-bg/95 backdrop-blur-md border-t border-af-border px-4 py-3">
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-af-bg/95 backdrop-blur-md border-t border-af-border px-4 pt-3 pb-[calc(12px+env(safe-area-inset-bottom))]">
         <div className="max-w-lg mx-auto flex gap-3">
           {/* WhatsApp */}
           {whatsappUrl && (
