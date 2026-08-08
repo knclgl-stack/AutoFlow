@@ -512,6 +512,20 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
 }
 
 function makeDefaultConfig(colorProfile: CarColor): ShowroomConfig {
+  let defaultBgStyle: "classic" | "garage" | "sunset" | "minimalist" | "scifi" = "classic"
+  
+  if (colorProfile.nameEn === "black") {
+    defaultBgStyle = "minimalist"
+  } else if (colorProfile.nameEn === "red") {
+    defaultBgStyle = "sunset"
+  } else if (colorProfile.nameEn === "blue") {
+    defaultBgStyle = "scifi"
+  } else if (colorProfile.nameEn === "silver") {
+    defaultBgStyle = "garage"
+  } else if (colorProfile.nameEn === "white") {
+    defaultBgStyle = "classic"
+  }
+
   return {
     bg: colorProfile.bg,
     floorColor: colorProfile.bg,
@@ -524,8 +538,8 @@ function makeDefaultConfig(colorProfile: CarColor): ShowroomConfig {
     spotlightWidth: 0.65,
     showNeonStrips: true,
     showSpotlight: true,
-    showFloorGrid: true,
-    bgStyle: "classic",
+    showFloorGrid: defaultBgStyle !== "minimalist",
+    bgStyle: defaultBgStyle,
     censorPlate: false,
     lightPanelOpacity: 0.12,
     name: colorProfile.name,
