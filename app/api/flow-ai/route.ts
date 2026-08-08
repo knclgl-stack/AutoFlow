@@ -48,11 +48,7 @@ export async function POST(req: NextRequest) {
     }
 
     const genAI = new GoogleGenerativeAI(key)
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash",
-      systemInstruction: SYSTEM_PROMPT,
-    })
-
+    
     // Gemini kuralı: history her zaman "user" ile başlamalı
     // Baştaki "model" mesajlarını kırp
     const rawHistory = (history || []).map((m: { role: string; text: string }) => ({
@@ -67,11 +63,30 @@ export async function POST(req: NextRequest) {
     }
     const formattedHistory = rawHistory.slice(startIdx)
 
-    const chat = model.startChat({ history: formattedHistory })
-    const result = await chat.sendMessage(message)
-    const text = result.response.text()
+    let replyText = ""
+    try {
+      // 1. Önce en güncel gemini-2.0-flash modelini dene
+      const model = genAI.getGenerativeModel({
+        model: "gemini-2.0-flash",
+        systemInstruction: SYSTEM_PROMPT,
+      })
+      const chat = model.startChat({ history: formattedHistory })
+      const result = await chat.sendMessage(message)
+      replyText = result.response.text()
+    } catch (firstErr: any) {
+      console.warn("Gemini 2.0 Flash failed, trying fallback to Gemini 1.5 Flash:", firstErr.message)
+      
+      // 2. Hata alınırsa (örneğin 429 quota hatası) gemini-1.5-flash modeline fallback yap
+      const modelFallback = genAI.getGenerativeModel({
+        model: "gemini-1.5-flash",
+        systemInstruction: SYSTEM_PROMPT,
+      })
+      const chatFallback = modelFallback.startChat({ history: formattedHistory })
+      const resultFallback = await chatFallback.sendMessage(message)
+      replyText = resultFallback.response.text()
+    }
 
-    return NextResponse.json({ reply: text })
+    return NextResponse.json({ reply: replyText })
   } catch (err: any) {
     console.error("Flow AI API error:", err)
     const msg = err?.message || "Bilinmeyen hata"
