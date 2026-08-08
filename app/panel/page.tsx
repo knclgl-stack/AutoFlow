@@ -182,14 +182,19 @@ export default function PanelDashboard() {
 
         if (userAraclar.length > 0) {
           const aracIds = userAraclar.map((a) => a.id)
-          const sevenDaysAgo = new Date()
-          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+
+          // Bu haftanın Pazartesi gece yarısından itibaren say (TR saati UTC+3)
+          const bugunPzt = new Date()
+          const gun = bugunPzt.getDay() // 0=Pazar, 1=Pzt, ..., 6=Cmt
+          const fark = gun === 0 ? 6 : gun - 1 // Pazartesi'ye kaç gün geriye git
+          bugunPzt.setDate(bugunPzt.getDate() - fark)
+          bugunPzt.setHours(0, 0, 0, 0)
 
           const { count, error: eventsError } = await supabase
             .from("qr_events")
             .select("*", { count: "exact", head: true })
             .in("arac_id", aracIds)
-            .gte("timestamp", sevenDaysAgo.toISOString())
+            .gte("timestamp", bugunPzt.toISOString())
 
           if (eventsError) throw eventsError
           if (count !== null) {

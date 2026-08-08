@@ -64,6 +64,11 @@ export function AdminClient({ initialGalleries, initialVehicles, initialScans }:
   const [yeniFotoUrl, setYeniFotoUrl] = useState("")
   const [uploading, setUploading] = useState(false)
 
+  // Galeri logo yükleme state'leri
+  const [logoUploadMode, setLogoUploadMode] = useState<"file" | "url">("file")
+  const [logoUrlInput, setLogoUrlInput] = useState("")
+  const [logoUploading, setLogoUploading] = useState(false)
+
   const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader()
@@ -118,6 +123,47 @@ export function AdminClient({ initialGalleries, initialVehicles, initialScans }:
       .getPublicUrl(fileName)
 
     return publicUrl
+  }
+
+  const uploadGalleryLogo = async (file: File, userId: string): Promise<string> => {
+    const fileExt = "jpg"
+    const fileName = `logos/${userId}/${Date.now()}.${fileExt}`
+    // Önce "araclar" bucket'ına dene, yoksa aynı bucket'ta logo klasörü kullan
+    const { error: uploadError } = await supabase.storage
+      .from("araclar")
+      .upload(fileName, file, { contentType: "image/jpeg", upsert: true })
+
+    if (uploadError) throw uploadError
+
+    const { data: { publicUrl } } = supabase.storage
+      .from("araclar")
+      .getPublicUrl(fileName)
+
+    return publicUrl
+  }
+
+  const handleLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!duzenlenenGaleri || !e.target.files || e.target.files.length === 0) return
+    setLogoUploading(true)
+    const file = e.target.files[0]
+    try {
+      const compressedBase64 = await compressImage(file)
+      let uploadedUrl: string | null = null
+      try {
+        const blob = dataURLtoBlob(compressedBase64)
+        const compressedFile = new File([blob], file.name, { type: "image/jpeg" })
+        uploadedUrl = await uploadGalleryLogo(compressedFile, duzenlenenGaleri.user_id)
+      } catch (storageErr) {
+        console.warn("Logo storage upload failed, fallback to base64", storageErr)
+      }
+      setDuzenlenenGaleri({ ...duzenlenenGaleri, logo_url: uploadedUrl || compressedBase64 })
+    } catch (err) {
+      console.error(err)
+      alert("Logo yüklenirken hata oluştu.")
+    } finally {
+      setLogoUploading(false)
+      e.target.value = ""
+    }
   }
 
   const handleAdminFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -255,7 +301,8 @@ export function AdminClient({ initialGalleries, initialVehicles, initialScans }:
           website: duzenlenenGaleri.website,
           adres: duzenlenenGaleri.adres,
           sehir: duzenlenenGaleri.sehir,
-          calisma_saatleri: duzenlenenGaleri.calisma_saatleri
+          calisma_saatleri: duzenlenenGaleri.calisma_saatleri,
+          logo_url: duzenlenenGaleri.logo_url || null
         })
         .eq("user_id", duzenlenenGaleri.user_id)
         .select()
@@ -901,6 +948,101 @@ export function AdminClient({ initialGalleries, initialVehicles, initialScans }:
               </button>
             </div>
             <form onSubmit={handleSaveGallery} className="p-6 overflow-y-auto space-y-4 flex-1">
+
+              {/* Profil Fotoğrafı (Logo) */}
+              <div>
+                <label className="block text-af-text-secondary text-xs font-semibold uppercase mb-2">Profil Fotoğrafı (Logo)</label>
+                <div className="flex items-start gap-4">
+                  {/* Mevcut logo önizlemesi */}
+                  <div className="w-20 h-20 rounded-xl overflow-hidden bg-af-surface-2 border border-af-border flex items-center justify-center flex-shrink-0 relative">
+                    {duzenlenenGaleri.logo_url ? (
+                      <>
+                        <img src={duzenlenenGaleri.logo_url} alt="Logo" className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => setDuzenlenenGaleri({ ...duzenlenenGaleri, logo_url: null })}
+                          className="absolute top-0.5 right-0.5 w-5 h-5 bg-black/70 hover:bg-af-error rounded-full flex items-center justify-center transition-colors"
+                        >
+                          <X className="w-3 h-3 text-white" />
+                        </button>
+                      </>
+                    ) : (
+                      <span className="text-2xl font-black text-af-accent">
+                        {duzenlenenGaleri.galeri_adi ? duzenlenenGaleri.galeri_adi.substring(0, 2).toUpperCase() : "G"}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex-1 space-y-2">
+                    {/* Mod seçici */}
+                    <div className="flex gap-1 p-1 bg-af-surface-2 rounded-lg border border-af-border w-fit">
+                      <button
+                        type="button"
+                        onClick={() => setLogoUploadMode("file")}
+                        className={cn(
+                          "text-xs px-3 py-1 rounded-md font-semibold transition-all",
+                          logoUploadMode === "file" ? "bg-af-accent text-white" : "text-af-text-secondary hover:text-white"
+                        )}
+                      >
+                        Dosya Yükle
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLogoUploadMode("url")}
+                        className={cn(
+                          "text-xs px-3 py-1 rounded-md font-semibold transition-all",
+                          logoUploadMode === "url" ? "bg-af-accent text-white" : "text-af-text-secondary hover:text-white"
+                        )}
+                      >
+                        URL ile
+                      </button>
+                    </div>
+
+                    {logoUploadMode === "file" ? (
+                      <label className={cn(
+                        "flex items-center gap-2 cursor-pointer border border-dashed border-af-border hover:border-af-accent/50 bg-af-surface-2/50 hover:bg-af-accent/5 rounded-xl px-4 py-2.5 text-sm text-af-text-secondary hover:text-af-accent transition-all",
+                        logoUploading && "opacity-60 pointer-events-none"
+                      )}>
+                        {logoUploading ? (
+                          <><Loader2 className="w-4 h-4 animate-spin" /> Yükleniyor...</>
+                        ) : (
+                          <><Upload className="w-4 h-4" /> Logo seç (JPG, PNG)</>  
+                        )}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleLogoFileChange}
+                          disabled={logoUploading}
+                        />
+                      </label>
+                    ) : (
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="https://... logo URL'si"
+                          className={inputClass}
+                          value={logoUrlInput}
+                          onChange={(e) => setLogoUrlInput(e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (logoUrlInput.startsWith("http")) {
+                              setDuzenlenenGaleri({ ...duzenlenenGaleri, logo_url: logoUrlInput.trim() })
+                              setLogoUrlInput("")
+                            }
+                          }}
+                          className="bg-af-accent hover:bg-af-accent-hover text-white text-xs font-bold px-3 py-2 rounded-xl transition-colors whitespace-nowrap flex-shrink-0"
+                        >
+                          Uygula
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-af-text-secondary text-xs font-semibold uppercase mb-1.5">Galeri Adı</label>
