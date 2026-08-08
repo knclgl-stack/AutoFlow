@@ -227,18 +227,55 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
       const horizonY = H * 0.62
 
       if (config.bgStyle === "dealer") {
+        // Off-white/Light-grey wall base with concrete panel textures
         const wallGrad = ctx.createLinearGradient(0, 0, 0, horizonY)
-        wallGrad.addColorStop(0, "#e3e3e5")
-        wallGrad.addColorStop(0.3, "#e9e9eb")
-        wallGrad.addColorStop(1, "#f2f2f4")
+        wallGrad.addColorStop(0, "#d1d1d4") // darker at the top (ceiling shadow)
+        wallGrad.addColorStop(0.3, "#dbdbde")
+        wallGrad.addColorStop(0.85, "#e8e8eb")
+        wallGrad.addColorStop(1, "#dfdfe2") // slight drop shadow at the horizon curve
         ctx.fillStyle = wallGrad
         ctx.fillRect(0, 0, W, horizonY)
 
-        const curveGrad = ctx.createLinearGradient(0, horizonY - H * 0.05, 0, horizonY)
+        // Draw vertical concrete panel lines on the wall to break the void
+        ctx.strokeStyle = "rgba(0, 0, 0, 0.05)"
+        ctx.lineWidth = 1
+        const panelW = W / 4
+        for (let i = 1; i < 4; i++) {
+          ctx.beginPath()
+          ctx.moveTo(i * panelW, 0)
+          ctx.lineTo(i * panelW, horizonY)
+          ctx.stroke()
+        }
+        
+        // Faint horizontal seams to make it look like constructed concrete panel walls
+        ctx.beginPath()
+        ctx.moveTo(0, horizonY * 0.4)
+        ctx.lineTo(W, horizonY * 0.4)
+        ctx.stroke()
+
+        // Ceiling Shadow vignette (makes it feel enclosed)
+        const ceilingGlow = ctx.createLinearGradient(0, 0, 0, horizonY * 0.5)
+        ceilingGlow.addColorStop(0, "rgba(0, 0, 0, 0.28)") // dark ceiling corner
+        ceilingGlow.addColorStop(1, "rgba(0, 0, 0, 0)")
+        ctx.fillStyle = ceilingGlow
+        ctx.fillRect(0, 0, W, horizonY * 0.5)
+
+        // Side wall shadows (vignette on left and right edges)
+        const sideGlow = ctx.createRadialGradient(
+          W / 2, horizonY / 2, W * 0.3,
+          W / 2, horizonY / 2, W * 0.75
+        )
+        sideGlow.addColorStop(0, "rgba(0, 0, 0, 0)")
+        sideGlow.addColorStop(1, "rgba(0, 0, 0, 0.16)")
+        ctx.fillStyle = sideGlow
+        ctx.fillRect(0, 0, W, horizonY)
+
+        const curveGrad = ctx.createLinearGradient(0, horizonY - H * 0.08, 0, horizonY)
         curveGrad.addColorStop(0, "rgba(0, 0, 0, 0)")
-        curveGrad.addColorStop(1, "rgba(0, 0, 0, 0.08)")
+        curveGrad.addColorStop(0.5, "rgba(0, 0, 0, 0.04)")
+        curveGrad.addColorStop(1, "rgba(0, 0, 0, 0.15)") // dark occlusion where floor meets wall
         ctx.fillStyle = curveGrad
-        ctx.fillRect(0, horizonY - H * 0.05, W, H * 0.05)
+        ctx.fillRect(0, horizonY - H * 0.08, W, H * 0.08)
       } else if (config.bgStyle === "sunset") {
         const wallGrad = ctx.createLinearGradient(0, 0, 0, horizonY)
         wallGrad.addColorStop(0, "#080210") // twilight purple
@@ -411,17 +448,10 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
       // 3. Showroom Floor background gradient (reflective showroom floor)
       const floorGrad = ctx.createLinearGradient(0, horizonY, 0, H)
       if (config.bgStyle === "dealer") {
-        floorGrad.addColorStop(0, "#ececed")
-        floorGrad.addColorStop(0.2, "#dedee0")
-        floorGrad.addColorStop(1, "#ceced0")
-        ctx.fillStyle = floorGrad
-        ctx.fillRect(0, horizonY, W, H - horizonY)
-
-        const floorCurveGrad = ctx.createLinearGradient(0, horizonY, 0, horizonY + H * 0.05)
-        floorCurveGrad.addColorStop(0, "rgba(0, 0, 0, 0.08)")
-        floorCurveGrad.addColorStop(1, "rgba(0, 0, 0, 0)")
-        ctx.fillStyle = floorCurveGrad
-        ctx.fillRect(0, horizonY, W, H * 0.05)
+        // Darker concrete floor gradient for high contrast
+        floorGrad.addColorStop(0, "#b0b0b4") // soft horizon intersection
+        floorGrad.addColorStop(0.12, "#98989c") // mid floor
+        floorGrad.addColorStop(1, "#7c7c80") // darker foreground for professional depth vignette
       } else if (config.bgStyle === "sunset") {
         floorGrad.addColorStop(0, "#c46a12") // warm sunset reflection color
         floorGrad.addColorStop(0.3, "#1a0803")
@@ -433,6 +463,19 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
       }
       ctx.fillStyle = floorGrad
       ctx.fillRect(0, horizonY, W, H - horizonY)
+
+      if (config.bgStyle === "dealer") {
+        // Soft gradient overlay matching the car's theme tint
+        ctx.fillStyle = `rgba(${accentRgb}, 0.03)`
+        ctx.fillRect(0, horizonY, W, H - horizonY)
+
+        // Horizon curved ambient occlusion shadow on the floor
+        const floorCurveGrad = ctx.createLinearGradient(0, horizonY, 0, horizonY + H * 0.06)
+        floorCurveGrad.addColorStop(0, "rgba(0, 0, 0, 0.16)")
+        floorCurveGrad.addColorStop(1, "rgba(0, 0, 0, 0)")
+        ctx.fillStyle = floorCurveGrad
+        ctx.fillRect(0, horizonY, W, H * 0.06)
+      }
 
       // 4. Perspective Grid on the floor (tiles)
       if (config.showFloorGrid) {
@@ -622,7 +665,7 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
       // 9. Draw original scaled car on top
       ctx.drawImage(img, drawX, drawY, drawW, drawH)
 
-      // 10. Optional License Plate Censor
+      // 10. Optional License Plate Censor (Draggable & Realistic Turkish Dealer Plate Design)
       if (config.censorPlate) {
         ctx.save()
         // Use relative percent positions if supplied, otherwise fallback to bumper center
@@ -632,11 +675,11 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
         const plateY = config.plateYPercent !== undefined ? (config.plateYPercent / 100) * H : carBottomY - carH * scale * 0.13
 
         // Draw plate shadow
-        ctx.shadowColor = "rgba(0, 0, 0, 0.4)"
+        ctx.shadowColor = "rgba(0, 0, 0, 0.45)"
         ctx.shadowBlur = 6
         ctx.shadowOffsetY = 2
 
-        // Draw plate background (glossy black plate)
+        // Draw plate background (glossy black plate holder frame)
         ctx.fillStyle = "#111112"
         ctx.strokeStyle = "#333336"
         ctx.lineWidth = 1.5
@@ -650,21 +693,37 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
         ctx.shadowBlur = 0 // reset shadow
 
         // Inner glowing border or accent line
-        ctx.strokeStyle = `rgba(${accentRgb}, 0.6)`
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.12)"
         ctx.lineWidth = 1
         ctx.beginPath()
         ctx.roundRect(plateX + 1.5, plateY + 1.5, plateW - 3, plateH - 3, radius)
         ctx.stroke()
 
-        // Write dealer name inside the plate
+        // TR Blue stripe on the left
+        const blueW = plateW * 0.078
+        ctx.fillStyle = "#003399" // EU/TR Blue
+        ctx.beginPath()
+        ctx.roundRect(plateX + 1.5, plateY + 1.5, blueW, plateH - 3, { tl: radius - 1, bl: radius - 1, tr: 0, br: 0 } as any)
+        ctx.fill()
+
+        // "TR" Text inside blue stripe
         ctx.fillStyle = "#ffffff"
-        const fontSize = Math.max(7, Math.floor(plateH * 0.55))
+        const trFontSize = Math.max(4, Math.floor(plateH * 0.38))
+        ctx.font = `bold ${trFontSize}px sans-serif`
+        ctx.textAlign = "center"
+        ctx.textBaseline = "middle"
+        ctx.fillText("TR", plateX + 1.5 + blueW / 2, plateY + plateH * 0.65)
+
+        // Brand Name on the black area (centered in the remaining width)
+        ctx.fillStyle = "#f5f5f7"
+        const fontSize = Math.max(6, Math.floor(plateH * 0.48))
         ctx.font = `bold ${fontSize}px sans-serif`
         ctx.textAlign = "center"
         ctx.textBaseline = "middle"
-        // Let's letter-space it a bit
+        
         const text = (config.dealerName || "AUTOFLOW").toUpperCase()
-        ctx.fillText(text, plateX + plateW / 2, plateY + plateH / 2 + 1)
+        const textX = plateX + 1.5 + blueW + (plateW - 3 - blueW) / 2
+        ctx.fillText(text, textX, plateY + plateH / 2 + 1)
         ctx.restore()
       }
 
@@ -1681,7 +1740,7 @@ JSON Formatı:
                         e.stopPropagation()
                         setIsDraggingPlate(true)
                       }}
-                      className="absolute group border border-amber-400/50 hover:border-amber-400 cursor-move select-none flex items-center justify-center bg-[#111112] rounded shadow-2xl"
+                      className="absolute group border border-amber-400/40 hover:border-amber-400 cursor-move select-none flex items-center bg-[#111112] rounded shadow-2xl overflow-hidden"
                       style={{
                         left: `${plateXPercent}%`,
                         top: `${plateYPercent}%`,
@@ -1690,13 +1749,19 @@ JSON Formatı:
                         zIndex: 20
                       }}
                     >
-                      {/* Inner accent border */}
-                      <div className="absolute inset-0.5 border border-white/10 rounded pointer-events-none" />
-                      
-                      {/* Dealer name */}
-                      <span className="text-white text-[7px] md:text-[9px] font-bold uppercase tracking-wider select-none truncate px-1 text-center">
-                        {(showroomConfig.dealerName || "AUTOFLOW").toUpperCase()}
-                      </span>
+                      {/* TR Blue stripe on the left */}
+                      <div className="h-full bg-[#003399] flex flex-col justify-end items-center px-[2%] py-[4%] select-none rounded-l" style={{ width: "7.8%" }}>
+                        <span className="text-white font-bold select-none text-[3.5px] leading-none mb-[10%]">TR</span>
+                      </div>
+
+                      {/* Brand Name centered in the remaining black space */}
+                      <div className="flex-1 h-full flex items-center justify-center relative select-none">
+                        {/* Inner accent frame border */}
+                        <div className="absolute inset-[4%] border border-white/5 rounded pointer-events-none" />
+                        <span className="text-[#f5f5f7] font-black uppercase select-none truncate px-1 text-center text-[7px] md:text-[10px] tracking-wider leading-none">
+                          {(showroomConfig.dealerName || "AUTOFLOW").toUpperCase()}
+                        </span>
+                      </div>
                       
                       {/* Resize Handle (bottom-right corner) */}
                       <div
@@ -1710,7 +1775,7 @@ JSON Formatı:
                           e.preventDefault()
                           setIsResizingPlate(true)
                         }}
-                        className="absolute right-0 bottom-0 w-3 h-3 bg-amber-400 rounded-bl cursor-se-resize flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute right-0 bottom-0 w-3.5 h-3.5 bg-amber-400 rounded-bl cursor-se-resize flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                         style={{ zIndex: 21 }}
                       />
                     </div>
