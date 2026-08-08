@@ -114,7 +114,10 @@ export function AdminClient({ initialGalleries, initialVehicles, initialScans }:
     const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${fileExt}`
     const { error: uploadError } = await supabase.storage
       .from("araclar")
-      .upload(fileName, file, { contentType: "image/jpeg" })
+      .upload(fileName, file, { 
+        contentType: "image/jpeg",
+        cacheControl: '31536000'
+      })
 
     if (uploadError) throw uploadError
 
@@ -131,7 +134,11 @@ export function AdminClient({ initialGalleries, initialVehicles, initialScans }:
     // Önce "araclar" bucket'ına dene, yoksa aynı bucket'ta logo klasörü kullan
     const { error: uploadError } = await supabase.storage
       .from("araclar")
-      .upload(fileName, file, { contentType: "image/jpeg", upsert: true })
+      .upload(fileName, file, { 
+        contentType: "image/jpeg", 
+        upsert: true,
+        cacheControl: '31536000'
+      })
 
     if (uploadError) throw uploadError
 

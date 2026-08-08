@@ -297,7 +297,10 @@ export default function DuzenleAracPage({ params }: PageProps) {
     const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${fileExt}`
     const { error: uploadError } = await supabase.storage
       .from("araclar")
-      .upload(fileName, file, { contentType: "image/jpeg" })
+      .upload(fileName, file, { 
+        contentType: "image/jpeg",
+        cacheControl: '31536000'
+      })
 
     if (uploadError) throw uploadError
 
