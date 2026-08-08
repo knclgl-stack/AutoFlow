@@ -153,6 +153,20 @@ export function GaleriClient({ galeri, initialAraclar }: GaleriClientProps) {
               )}
             </div>
           </div>
+
+          {/* Mobil İletişim Butonları */}
+          <div className="flex sm:hidden gap-3 mt-4">
+            {galeri.telefon && (
+              <a href={`tel:${galeri.telefon.replace(/\s/g, "")}`} className="flex-1 flex items-center justify-center gap-2 bg-af-accent hover:bg-af-accent-hover text-white text-sm font-semibold py-2.5 rounded-xl transition-all shadow-lg shadow-af-accent/15">
+                <Phone className="w-4 h-4" />Ara
+              </a>
+            )}
+            {galeri.instagram && (
+              <a href={`https://instagram.com/${galeri.instagram}`} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center justify-center gap-2 border border-af-border hover:bg-af-surface-2 text-af-text-secondary text-sm font-medium py-2.5 rounded-xl transition-colors">
+                <Instagram className="w-4 h-4" />Instagram
+              </a>
+            )}
+          </div>
           <div className={cn(
             "flex gap-6 mt-5 pt-5 border-t",
             galeri.plan === "Elite" ? "border-amber-500/10" : "border-af-border"
