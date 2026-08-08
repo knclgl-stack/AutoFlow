@@ -15,6 +15,10 @@ export default function AdminPage() {
   const [galleries, setGalleries] = useState<any[]>([])
   const [vehicles, setVehicles] = useState<any[]>([])
   const [scans, setScans] = useState<any[]>([])
+  const [totalScansCount, setTotalScansCount] = useState(0)
+  const [mobileScansCount, setMobileScansCount] = useState(0)
+  const [desktopScansCount, setDesktopScansCount] = useState(0)
+  const [tabletScansCount, setTabletScansCount] = useState(0)
   const [dataLoading, setDataLoading] = useState(true)
 
   useEffect(() => {
@@ -27,7 +31,15 @@ export default function AdminPage() {
 
     async function fetchAdminData() {
       try {
-        const [gResult, vResult, sResult] = await Promise.all([
+        const [
+          gResult,
+          vResult,
+          recentScansResult,
+          totalCountRes,
+          mobileCountRes,
+          desktopCountRes,
+          tabletCountRes
+        ] = await Promise.all([
           supabase
             .from("galeri_profilleri")
             .select("*")
@@ -40,16 +52,37 @@ export default function AdminPage() {
             .from("qr_events")
             .select("device_type, timestamp")
             .order("timestamp", { ascending: false })
+            .limit(50),
+          supabase
+            .from("qr_events")
+            .select("*", { count: "exact", head: true }),
+          supabase
+            .from("qr_events")
+            .select("*", { count: "exact", head: true })
+            .eq("device_type", "mobile"),
+          supabase
+            .from("qr_events")
+            .select("*", { count: "exact", head: true })
+            .eq("device_type", "desktop"),
+          supabase
+            .from("qr_events")
+            .select("*", { count: "exact", head: true })
+            .eq("device_type", "tablet")
         ])
         
-        const mappedScans = (sResult.data || []).map((scan: any) => ({
+        const mappedScans = (recentScansResult.data || []).map((scan: any) => ({
           ...scan,
           created_at: scan.timestamp || scan.created_at
         }))
 
         if (gResult.data) setGalleries(gResult.data)
         if (vResult.data) setVehicles(vResult.data)
-        if (sResult.data) setScans(mappedScans)
+        if (recentScansResult.data) setScans(mappedScans)
+        
+        setTotalScansCount(totalCountRes.count || 0)
+        setMobileScansCount(mobileCountRes.count || 0)
+        setDesktopScansCount(desktopCountRes.count || 0)
+        setTabletScansCount(tabletCountRes.count || 0)
       } catch (err) {
         console.error("Yönetici paneli veri çekme hatası:", err)
       } finally {
@@ -76,6 +109,10 @@ export default function AdminPage() {
       initialGalleries={galleries} 
       initialVehicles={vehicles} 
       initialScans={scans} 
+      totalScansCount={totalScansCount}
+      mobileScansCount={mobileScansCount}
+      desktopScansCount={desktopScansCount}
+      tabletScansCount={tabletScansCount}
     />
   )
 }

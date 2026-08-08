@@ -31,6 +31,10 @@ interface AdminClientProps {
   initialGalleries: any[]
   initialVehicles: any[]
   initialScans: any[]
+  totalScansCount: number
+  mobileScansCount: number
+  desktopScansCount: number
+  tabletScansCount: number
 }
 
 const VITESLER = ["Manuel", "Otomatik", "Yarı-Otomatik"]
@@ -39,7 +43,15 @@ const KASALAR = ["Sedan", "Hatchback", "SUV", "Coupe", "Pickup", "Cabrio", "Stat
 
 const inputClass = "w-full bg-af-surface border border-af-border text-af-text placeholder:text-af-text-disabled rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-af-accent transition-colors"
 
-export function AdminClient({ initialGalleries, initialVehicles, initialScans }: AdminClientProps) {
+export function AdminClient({ 
+  initialGalleries, 
+  initialVehicles, 
+  initialScans,
+  totalScansCount,
+  mobileScansCount,
+  desktopScansCount,
+  tabletScansCount
+}: AdminClientProps) {
   const supabase = createClient()
   const [aktifTab, setAktifTab] = useState<"stats" | "galleries" | "vehicles" | "subscriptions" >("stats")
   
@@ -258,14 +270,14 @@ export function AdminClient({ initialGalleries, initialVehicles, initialScans }:
   // İstatistikler
   const totalGalleries = galleries.length
   const totalVehicles = vehicles.length
-  const totalScans = scans.length
+  const totalScans = totalScansCount
   const activeVehicles = vehicles.filter(v => v.durum === "Aktif").length
   const soldVehicles = vehicles.filter(v => v.durum === "Satildi").length
 
   // Cihaz Dağılımı
-  const mobileScans = scans.filter(s => s.device_type === "mobile").length
-  const desktopScans = scans.filter(s => s.device_type === "desktop").length
-  const tabletScans = scans.filter(s => s.device_type === "tablet").length
+  const mobileScans = mobileScansCount
+  const desktopScans = desktopScansCount
+  const tabletScans = tabletScansCount
 
   const getVehicleCount = (userId: string) => {
     return vehicles.filter(v => v.user_id === userId).length
