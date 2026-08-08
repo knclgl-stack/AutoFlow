@@ -129,6 +129,31 @@ USING (
   OR auth.jwt() ->> 'email' IN ('wwekaannet@gmail.com', 'admin@autoflow.com', 'kaanclgl@gmail.com')
 );
 
+-- ── QR OKUTMALARI (qr_events) TABLOSU POLİTİKALARI ──
+
+-- RLS'i aktifleştir
+ALTER TABLE public.qr_events ENABLE ROW LEVEL SECURITY;
+
+-- Herkes QR okutma kaydı ekleyebilir (INSERT - Müşteriler giriş yapmadan cam kartı okuttuğu için)
+DROP POLICY IF EXISTS "Allow public insert on qr_events" ON public.qr_events;
+CREATE POLICY "Allow public insert on qr_events"
+ON public.qr_events FOR INSERT
+TO public
+WITH CHECK (true);
+
+-- Sadece araç sahibi kendi aracına ait QR okutmalarını görebilir (SELECT)
+DROP POLICY IF EXISTS "Allow authenticated read own qr_events" ON public.qr_events;
+CREATE POLICY "Allow authenticated read own qr_events"
+ON public.qr_events FOR SELECT
+TO authenticated
+USING (
+  arac_id IN (
+    SELECT id FROM public.araclar WHERE user_id = auth.uid()
+  )
+  OR auth.jwt() ->> 'email' IN ('wwekaannet@gmail.com', 'admin@autoflow.com', 'kaanclgl@gmail.com')
+);
+
+
 -- 4. HIZLI SORGU İNDEKS LERİ
 CREATE INDEX IF NOT EXISTS idx_araclar_user_id ON public.araclar(user_id);
 CREATE INDEX IF NOT EXISTS idx_araclar_qr_slug ON public.araclar(qr_slug);
