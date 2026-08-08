@@ -219,6 +219,22 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
         wallGrad.addColorStop(1, config.bg)
         ctx.fillStyle = wallGrad
         ctx.fillRect(0, 0, W, horizonY)
+
+        // Soft radial glow on the back wall behind the car to create 3D depth
+        ctx.save()
+        const glowCX = W / 2
+        const wallGlow = ctx.createRadialGradient(
+          glowCX, horizonY - H * 0.1, 0,
+          glowCX, horizonY - H * 0.1, W * 0.4
+        )
+        wallGlow.addColorStop(0, `rgba(${accentRgb}, 0.15)`)
+        wallGlow.addColorStop(0.5, `rgba(${accentRgb}, 0.04)`)
+        wallGlow.addColorStop(1, "rgba(0, 0, 0, 0)")
+        ctx.fillStyle = wallGlow
+        ctx.beginPath()
+        ctx.arc(glowCX, horizonY - H * 0.1, W * 0.4, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.restore()
       }
 
       // Draw garage style pillars on the wall
@@ -319,8 +335,11 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
         ctx.restore()
       }
 
-      // 5. Overhead Light Panels (Reflected on the Floor)
+      // 5. Overhead Light Panels (Reflected on the Floor) - Diffused with soft blur filter
       if (config.lightPanelOpacity > 0) {
+        ctx.save()
+        ctx.filter = "blur(15px)"
+
         // Left panel reflection
         const leftRef = ctx.createLinearGradient(W * 0.25, horizonY, W * 0.25, H)
         leftRef.addColorStop(0, `rgba(${leftPanelRgb}, ${config.lightPanelOpacity})`)
@@ -336,6 +355,9 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
         rightRef.addColorStop(1, "rgba(0, 0, 0, 0)")
         ctx.fillStyle = rightRef
         ctx.fillRect(W * 0.65, horizonY, W * 0.2, H - horizonY)
+
+        ctx.restore()
+        ctx.filter = "none"
       }
 
       // 6. Scan bounding box of the car
@@ -399,14 +421,16 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
         ctx.restore()
       }
 
-      // 7. Floor Reflection (flipped car)
+      // 7. Floor Reflection (flipped car) - Soft blurred glossy reflection!
       if (config.reflectionOpacity > 0) {
         ctx.save()
         ctx.translate(0, carBottomY)
         ctx.scale(1, -0.28)
         ctx.globalAlpha = config.reflectionOpacity
+        ctx.filter = "blur(4px)" // beautiful glossy floor texture blur
         ctx.drawImage(img, 0, 0, W, H)
         ctx.restore()
+        ctx.filter = "none"
 
         // Reflection fading overlay
         const reflectionHeight = carH * 0.3
@@ -452,6 +476,19 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
       ctx.fillStyle = tightShadow
       ctx.beginPath()
       ctx.arc(0, 0, carW * 0.45, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.restore()
+
+      // Dedicated tire contact shadows
+      ctx.save()
+      ctx.fillStyle = "rgba(0, 0, 0, 0.95)"
+      // Left tire contact
+      ctx.beginPath()
+      ctx.ellipse(carCX - carW * 0.28, carBottomY, carW * 0.09, carW * 0.015, 0, 0, Math.PI * 2)
+      ctx.fill()
+      // Right tire contact
+      ctx.beginPath()
+      ctx.ellipse(carCX + carW * 0.28, carBottomY, carW * 0.09, carW * 0.015, 0, 0, Math.PI * 2)
       ctx.fill()
       ctx.restore()
 
@@ -776,6 +813,7 @@ export default function FlowAiPage() {
                            text.includes("kapat") || text.includes("aç") || text.includes("yansıma") ||
                            text.includes("karo") || text.includes("grid") || text.includes("panel") ||
                            text.includes("plaka") || text.includes("sansür") || text.includes("gizle") ||
+                           text.includes("yok et") || text.includes("karanlık") || text.includes("aydınlık") ||
                            revisionMode
                            
     if (!isVisualPrompt) return false
@@ -805,27 +843,31 @@ Mevcut stüdyo ayarları:
 
 Kullanıcının yeni talebi: "${prompt}"
 
-Lütfen bu talebe göre yeni stüdyo parametrelerini hesapla ve SADECE aşağıdaki JSON formatında yanıt ver. Yanıtında JSON dışında hiçbir açıklama, kod blok işaretçisi (\`\`\`json vb.) veya ek yazı BULUNMAMALIDIR. Sadece saf JSON string dön. Eğer kullanıcı bazı özellikleri değiştirmek istemediyse mevcut değerlerini aynen koru.
+Görevin: Kullanıcının talebini en hassas şekilde analiz et ve stüdyonun tüm parametrelerini buna göre güncelle. 
 
-Kritik Kurallar:
-1. Kullanıcı "plakayı kapat", "plakayı yok et", "plakayı gizle" veya "plakayı sansürle" gibi bir istekte bulunursa "censorPlate" değerini true yap.
-2. Kullanıcı "yansımaları kaldır", "yansımaları sil" veya "yansıma istemiyorum" derse "reflectionOpacity" değerini 0.0 ve "lightPanelOpacity" değerini 0.0 yap.
-3. Kullanıcı "arka planı değiştir" veya "farklı arka plan", "sunset", "garage", "minimalist", "scifi" tarzı şeyler isterse "bgStyle" özelliğini uygun tarzla güncelle.
-- "classic": Klasik yatay neonlu showroom
-- "garage": Beton direkli endüstriyel garaj stili
-- "sunset": Gün batımı sahil manzaralı arka plan
-- "minimalist": Neonlar ve ışıklar olmayan düz sade galeri
-- "scifi": Çapraz lazer çizgili fütüristik siberpunk garajı
+Tasarım Kılavuzu:
+1. Kullanıcı "yansımaları kaldır", "yansımaları sil" veya "yansıma istemiyorum" derse: "reflectionOpacity" değerini 0.0 ve "lightPanelOpacity" değerini 0.0 yap.
+2. Kullanıcı "daha parlak yansıma/ayna zemin yap" derse: "reflectionOpacity" değerini 0.45 ve "lightPanelOpacity" değerini 0.22 yap.
+3. Kullanıcı "ışıkları kapat/loş yap/karanlık yap" derse: "showSpotlight" = false, "showNeonStrips" = false, "lightPanelOpacity" = 0.0, "bg" = "#030303", "floorColor" = "#010101".
+4. Kullanıcı "tepe ışığını daralt/küçült" derse: "spotlightWidth" = 0.25. "genişlet/büyüt" derse: "spotlightWidth" = 1.25.
+5. Kullanıcı "plakayı kapat/sansürle/yok et/gizle" derse: "censorPlate" = true.
+6. Kullanıcı "plakayı aç/sansürsüz yap" derse: "censorPlate" = false.
+7. Kullanıcı "sunset/gün batımı stüdyosu olsun" derse: "bgStyle" = "sunset", "bg" = "#a62429", "floorColor" = "#1a0803", "accent" = "#d98b1e".
+8. Kullanıcı "siberpunk/scifi stüdyosu olsun" derse: "bgStyle" = "scifi", "accent" = "#ff0077".
+9. Kullanıcı "minimalist stüdyo olsun" derse: "bgStyle" = "minimalist", "showNeonStrips" = false, "showFloorGrid" = false.
+10. Kullanıcı "beton garaj olsun" derse: "bgStyle" = "garage", "bg" = "#1a1a1c", "floorColor" = "#0f0f10".
+
+Yanıtında JSON dışında hiçbir açıklama, kod blok işaretçisi (\`\`\`json vb.) veya ek yazı BULUNMAMALIDIR. Sadece saf JSON string dön. Eğer kullanıcı bazı özellikleri değiştirmek istemediyse mevcut değerlerini aynen koru.
 
 JSON Formatı:
 {
-  "bg": "duvar için hex rengi (örn: #050a1a, #0a0a0a, #1a0505)",
-  "floorColor": "zemin için hex rengi (örn: #020203, #050a1a)",
-  "accent": "neon şeritler için parlak hex rengi (örn: #3399ff, #ff6644, #00ff33)",
-  "spotlightColor": "tepe spotlight için parlak hex rengi",
-  "leftPanelColor": "sol panel yansıması için parlak hex rengi",
-  "rightPanelColor": "sağ panel yansıması için parlak hex rengi",
-  "gridColor": "zemin karo çizgileri için hex rengi",
+  "bg": "duvar için hex rengi (örn: #050a1a, #0a0a0a)",
+  "floorColor": "zemin için hex rengi",
+  "accent": "neon şeritler için hex rengi",
+  "spotlightColor": "spotlight için hex rengi",
+  "leftPanelColor": "sol panel için hex rengi",
+  "rightPanelColor": "sağ panel için hex rengi",
+  "gridColor": "karo çizgileri için hex rengi",
   "reflectionOpacity": 0.22,
   "spotlightWidth": 0.65,
   "showNeonStrips": true,
