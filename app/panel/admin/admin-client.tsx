@@ -19,7 +19,11 @@ import {
   Monitor,
   Tablet,
   X,
-  Edit2
+  Edit2,
+  Upload,
+  ArrowLeft,
+  ArrowRight,
+  Loader2
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -54,6 +58,149 @@ export function AdminClient({ initialGalleries, initialVehicles, initialScans }:
   const [duzenlenenGaleri, setDuzenlenenGaleri] = useState<any | null>(null)
   const [duzenlenenArac, setDuzenlenenArac] = useState<any | null>(null)
   const [duzenlemeKaydediliyor, setDuzenlemeKaydediliyor] = useState(false)
+
+  // Admin araç fotoğraf yönetimi state'leri ve fonksiyonları
+  const [uploadMode, setUploadMode] = useState<"file" | "url">("file")
+  const [yeniFotoUrl, setYeniFotoUrl] = useState("")
+  const [uploading, setUploading] = useState(false)
+
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.readAsDataURL(file)
+      reader.onload = (event) => {
+        const img = new Image()
+        img.src = event.target?.result as string
+        img.onload = () => {
+          const canvas = document.createElement("canvas")
+          let width = img.width
+          let height = img.height
+          const MAX_W = 1200
+          const MAX_H = 900
+          if (width > height) {
+            if (width > MAX_W) { height *= MAX_W / width; width = MAX_W }
+          } else {
+            if (height > MAX_H) { width *= MAX_H / height; height = MAX_H }
+          }
+          canvas.width = width
+          canvas.height = height
+          const ctx = canvas.getContext("2d")!
+          ctx.drawImage(img, 0, 0, width, height)
+          resolve(canvas.toDataURL("image/jpeg", 0.75))
+        }
+        img.onerror = reject
+      }
+      reader.onerror = reject
+    })
+  }
+
+  const dataURLtoBlob = (dataurl: string): Blob => {
+    const arr = dataurl.split(",")
+    const mime = arr[0].match(/:(.*?);/)?.[1] || "image/jpeg"
+    const bstr = atob(arr[arr.length - 1])
+    let n = bstr.length
+    const u8arr = new Uint8Array(n)
+    while (n--) { u8arr[n] = bstr.charCodeAt(n) }
+    return new Blob([u8arr], { type: mime })
+  }
+
+  const uploadToSupabase = async (file: File, userId: string): Promise<string> => {
+    const fileExt = "jpg"
+    const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${fileExt}`
+    const { error: uploadError } = await supabase.storage
+      .from("araclar")
+      .upload(fileName, file, { contentType: "image/jpeg" })
+
+    if (uploadError) throw uploadError
+
+    const { data: { publicUrl } } = supabase.storage
+      .from("araclar")
+      .getPublicUrl(fileName)
+
+    return publicUrl
+  }
+
+  const handleAdminFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!duzenlenenArac || !e.target.files || e.target.files.length === 0) return
+    setUploading(true)
+    const files = e.target.files
+    const newUrls: string[] = []
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        const compressedBase64 = await compressImage(file)
+        
+        let uploadedUrl: string | null = null
+        try {
+          const blob = dataURLtoBlob(compressedBase64)
+          const compressedFile = new File([blob], file.name, { type: "image/jpeg" })
+          uploadedUrl = await uploadToSupabase(compressedFile, duzenlenenArac.user_id)
+        } catch (storageErr) {
+          console.warn("Storage upload failed, fallback to base64", storageErr)
+        }
+
+        newUrls.push(uploadedUrl || compressedBase64)
+      }
+      
+      const currentFotos = duzenlenenArac.fotograflar || []
+      setDuzenlenenArac({
+        ...duzenlenenArac,
+        fotograflar: [...currentFotos, ...newUrls]
+      })
+    } catch (err) {
+      console.error(err)
+      alert("Görseller yüklenirken hata oluştu.")
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const addAdminFotoUrl = () => {
+    if (!duzenlenenArac) return
+    if (yeniFotoUrl.trim() && yeniFotoUrl.startsWith("http")) {
+      const currentFotos = duzenlenenArac.fotograflar || []
+      setDuzenlenenArac({
+        ...duzenlenenArac,
+        fotograflar: [...currentFotos, yeniFotoUrl.trim()]
+      })
+      setYeniFotoUrl("")
+    }
+  }
+
+  const removeAdminFoto = (index: number) => {
+    if (!duzenlenenArac) return
+    const currentFotos = duzenlenenArac.fotograflar || []
+    setDuzenlenenArac({
+      ...duzenlenenArac,
+      fotograflar: currentFotos.filter((_: any, i: number) => i !== index)
+    })
+  }
+
+  const makeAdminCover = (index: number) => {
+    if (!duzenlenenArac || index === 0) return
+    const currentFotos = [...(duzenlenenArac.fotograflar || [])]
+    const [target] = currentFotos.splice(index, 1)
+    currentFotos.unshift(target)
+    setDuzenlenenArac({
+      ...duzenlenenArac,
+      fotograflar: currentFotos
+    })
+  }
+
+  const moveAdminFoto = (index: number, direction: "left" | "right") => {
+    if (!duzenlenenArac) return
+    const currentFotos = [...(duzenlenenArac.fotograflar || [])]
+    const targetIndex = direction === "left" ? index - 1 : index + 1
+    if (targetIndex < 0 || targetIndex >= currentFotos.length) return
+    const temp = currentFotos[index]
+    currentFotos[index] = currentFotos[targetIndex]
+    currentFotos[targetIndex] = temp
+    setDuzenlenenArac({
+      ...duzenlenenArac,
+      fotograflar: currentFotos
+    })
+  }
 
   // İstatistikler
   const totalGalleries = galleries.length
@@ -157,7 +304,8 @@ export function AdminClient({ initialGalleries, initialVehicles, initialScans }:
           fiyat: duzenlenenArac.fiyat ? parseFloat(duzenlenenArac.fiyat) : null,
           fiyat_gizle: duzenlenenArac.fiyat_gizle,
           pazarlik_var: duzenlenenArac.pazarlik_var,
-          durum: duzenlenenArac.durum
+          durum: duzenlenenArac.durum,
+          fotograflar: duzenlenenArac.fotograflar || []
         })
         .eq("id", duzenlenenArac.id)
         .select()
@@ -481,15 +629,35 @@ export function AdminClient({ initialGalleries, initialVehicles, initialScans }:
                       return (
                         <tr key={gal.user_id} className="hover:bg-af-surface-2/10 transition-colors">
                           <td className="p-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-9 h-9 rounded-lg bg-af-accent flex items-center justify-center text-white font-black text-sm">
-                                {gal.galeri_adi ? gal.galeri_adi.substring(0, 2).toUpperCase() : "G"}
+                            {gal.slug ? (
+                              <a 
+                                href={`/galeri/${gal.slug}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex items-center gap-3 group/item hover:opacity-85 transition-opacity"
+                              >
+                                <div className="w-9 h-9 rounded-lg bg-af-accent flex items-center justify-center text-white font-black text-sm group-hover/item:scale-105 transition-transform">
+                                  {gal.galeri_adi ? gal.galeri_adi.substring(0, 2).toUpperCase() : "G"}
+                                </div>
+                                <div>
+                                  <p className="font-bold text-white group-hover/item:text-af-accent transition-colors flex items-center gap-1">
+                                    {gal.galeri_adi || "İsimsiz Galeri"}
+                                    <ExternalLink className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />
+                                  </p>
+                                  <p className="text-[10px] text-af-text-disabled">slug: {gal.slug}</p>
+                                </div>
+                              </a>
+                            ) : (
+                              <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-lg bg-af-accent flex items-center justify-center text-white font-black text-sm">
+                                  {gal.galeri_adi ? gal.galeri_adi.substring(0, 2).toUpperCase() : "G"}
+                                </div>
+                                <div>
+                                  <p className="font-bold text-white">{gal.galeri_adi || "İsimsiz Galeri"}</p>
+                                  <p className="text-[10px] text-af-text-disabled">slug: Yok</p>
+                                </div>
                               </div>
-                              <div>
-                                <p className="font-bold text-white">{gal.galeri_adi || "İsimsiz Galeri"}</p>
-                                <p className="text-[10px] text-af-text-disabled">slug: {gal.slug}</p>
-                              </div>
-                            </div>
+                            )}
                           </td>
                           <td className="p-4 text-af-text-secondary">{gal.sehir || "—"}</td>
                           <td className="p-4 text-af-text-secondary">{gal.telefon || "—"}</td>
@@ -1018,6 +1186,136 @@ export function AdminClient({ initialGalleries, initialVehicles, initialScans }:
                   <label htmlFor="pazarlik_var" className="text-sm font-medium text-white cursor-pointer select-none">
                     Pazarlığa Açık
                   </label>
+                </div>
+
+                {/* Araç Görsel Yönetimi */}
+                <div className="md:col-span-2 border-t border-af-border/60 pt-4 mt-2 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-white uppercase tracking-wider">Araç Fotoğrafları</label>
+                    <div className="flex gap-1 bg-af-surface p-0.5 rounded-lg border border-af-border">
+                      <button
+                        type="button"
+                        onClick={() => setUploadMode("file")}
+                        className={cn("px-3 py-1 rounded text-xs font-semibold transition-all",
+                          uploadMode === "file" ? "bg-af-accent text-white" : "text-af-text-disabled"
+                        )}
+                      >
+                        Dosya Yükle
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setUploadMode("url")}
+                        className={cn("px-3 py-1 rounded text-xs font-semibold transition-all",
+                          uploadMode === "url" ? "bg-af-accent text-white" : "text-af-text-disabled"
+                        )}
+                      >
+                        URL ile Ekle
+                      </button>
+                    </div>
+                  </div>
+
+                  {uploadMode === "file" ? (
+                    <div className="border border-dashed border-af-border rounded-xl p-6 text-center hover:bg-af-surface/40 transition-colors relative">
+                      <input
+                        id="admin-file-upload"
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={handleAdminFileChange}
+                        disabled={uploading}
+                      />
+                      <button
+                        type="button"
+                        disabled={uploading}
+                        onClick={() => document.getElementById("admin-file-upload")?.click()}
+                        className="bg-af-surface-2 border border-af-border hover:border-af-accent text-white px-4 py-2 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 mx-auto"
+                      >
+                        <Upload className="w-3.5 h-3.5" /> Fotoğraf Seç
+                      </button>
+                      <p className="text-[11px] text-af-text-disabled mt-2">Sıkıştırılmış JPEG dosyası yüklenir.</p>
+                      {uploading && (
+                        <div className="absolute inset-0 bg-af-bg/80 flex items-center justify-center rounded-xl">
+                          <Loader2 className="w-6 h-6 animate-spin text-af-accent" />
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="https://... (fotoğraf URL'i)"
+                        className="flex-1 bg-af-surface border border-af-border rounded-xl px-3 py-2 text-xs text-af-text focus:outline-none focus:border-af-accent"
+                        value={yeniFotoUrl}
+                        onChange={(e) => setYeniFotoUrl(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addAdminFotoUrl())}
+                      />
+                      <button
+                        type="button"
+                        onClick={addAdminFotoUrl}
+                        className="bg-af-accent hover:bg-af-accent-hover text-white px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
+                      >
+                        Ekle
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Fotoğraf Listesi */}
+                  {duzenlenenArac.fotograflar && duzenlenenArac.fotograflar.length > 0 ? (
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 pt-2">
+                      {duzenlenenArac.fotograflar.map((url: string, i: number) => (
+                        <div key={i} className="relative aspect-[4/3] rounded-lg overflow-hidden border border-af-border bg-af-surface-2 group">
+                          <img src={url} alt="" className="w-full h-full object-cover" />
+                          {i === 0 && (
+                            <span className="absolute top-1.5 left-1.5 text-[8px] bg-af-accent text-white px-1.5 py-0.5 rounded font-black uppercase tracking-wider shadow">Kapak</span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => removeAdminFoto(i)}
+                            className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-black/60 hover:bg-af-error text-white flex items-center justify-center transition-colors shadow z-10"
+                            title="Görseli Sil"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+
+                          {/* Controls */}
+                          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-1 flex items-center justify-between opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                            <div className="flex gap-0.5">
+                              {i > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => moveAdminFoto(i, "left")}
+                                  className="w-5 h-5 rounded bg-black/65 hover:bg-af-accent text-white flex items-center justify-center"
+                                >
+                                  <ArrowLeft className="w-2.5 h-2.5" />
+                                </button>
+                              )}
+                              {i < duzenlenenArac.fotograflar.length - 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => moveAdminFoto(i, "right")}
+                                  className="w-5 h-5 rounded bg-black/65 hover:bg-af-accent text-white flex items-center justify-center"
+                                >
+                                  <ArrowRight className="w-2.5 h-2.5" />
+                                </button>
+                              )}
+                            </div>
+                            {i > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => makeAdminCover(i)}
+                                className="text-[8px] bg-black/65 hover:bg-af-accent text-white px-1.5 py-0.5 rounded font-bold uppercase tracking-wider"
+                              >
+                                Kapak
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-af-text-disabled text-center py-4 bg-af-surface/20 rounded-xl border border-af-border">Görsel bulunmuyor</p>
+                  )}
                 </div>
               </div>
               <div className="flex justify-end gap-3 pt-4 border-t border-af-border mt-4">

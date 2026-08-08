@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { PanelTopbar } from "@/components/panel/panel-topbar"
 import { formatKm } from "@/lib/arac-helpers"
 import { DurumRozeti } from "@/components/autoflow/durum-rozeti"
-import { Car, QrCode, TrendingUp, MessageCircle, ArrowUpRight, Plus } from "lucide-react"
+import { Car, QrCode, TrendingUp, MessageCircle, ArrowUpRight, Plus, Sparkles } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
@@ -24,12 +24,104 @@ export default function PanelDashboard() {
   const { user } = useAuth()
   const supabase = createClient()
 
-  const galeriAdi: string = user?.user_metadata?.galeri_adi || ""
-  const galeriSlug = galeriAdi ? galeriSlugOlustur(galeriAdi) : "galerim"
-
   const [araclar, setAraclar] = useState<Arac[]>([])
   const [qrOkutmalari, setQrOkutmalari] = useState<number>(0)
   const [yukleniyor, setYukleniyor] = useState(true)
+  const [galeriSlug, setGaleriSlug] = useState("galerim")
+  const [mocking, setMocking] = useState(false)
+
+  const handleMockEkle = async () => {
+    if (!user) return
+    setMocking(true)
+    try {
+      const mockCars = [
+        {
+          user_id: user.id,
+          marka: "BMW",
+          model: "3 Serisi",
+          yil: 2020,
+          versiyon: "320d M Sport",
+          renk: "Siyah",
+          motor_hacmi: 1995,
+          motor_gucu: 190,
+          vites: "Otomatik",
+          yakit: "Dizel",
+          kasa_tipi: "Sedan",
+          km: 84000,
+          hasar_kaydi: false,
+          boyali_parca: 0,
+          fotograflar: ["https://images.unsplash.com/photo-1555215695-3004980ad54e?w=800"],
+          fiyat: 1950000,
+          fiyat_gizle: false,
+          pazarlik_var: true,
+          ozellikler: ["Isıtmalı Koltuklar", "Sunroof / Panoramik Tavan", "Geri Görüş Kamerası", "Apple CarPlay / Android Auto", "LED Farlar"],
+          durum: "Aktif",
+          qr_slug: `bmw-320d-${Math.floor(1000 + Math.random() * 9000)}`
+        },
+        {
+          user_id: user.id,
+          marka: "Mercedes-Benz",
+          model: "C Serisi",
+          yil: 2019,
+          versiyon: "C200 d AMG",
+          renk: "Beyaz",
+          motor_hacmi: 1597,
+          motor_gucu: 160,
+          vites: "Otomatik",
+          yakit: "Dizel",
+          kasa_tipi: "Sedan",
+          km: 98000,
+          hasar_kaydi: true,
+          boyali_parca: 2,
+          fotograflar: ["https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?w=800"],
+          fiyat: 1820000,
+          fiyat_gizle: false,
+          pazarlik_var: false,
+          ozellikler: ["Sunroof / Panoramik Tavan", "Park Sensörü", "Geri Görüş Kamerası", "Deri Döşeme"],
+          durum: "Aktif",
+          qr_slug: `mb-c200-${Math.floor(1000 + Math.random() * 9000)}`
+        },
+        {
+          user_id: user.id,
+          marka: "Audi",
+          model: "A4",
+          yil: 2021,
+          versiyon: "40 TDI Quattro S-Line",
+          renk: "Gri",
+          motor_hacmi: 1968,
+          motor_gucu: 204,
+          vites: "Otomatik",
+          yakit: "Dizel",
+          kasa_tipi: "Sedan",
+          km: 42000,
+          hasar_kaydi: false,
+          boyali_parca: 0,
+          fotograflar: ["https://images.unsplash.com/photo-1606016159991-dfe4f2746ad5?w=800"],
+          fiyat: 2450000,
+          fiyat_gizle: false,
+          pazarlik_var: true,
+          ozellikler: ["Isıtmalı Koltuklar", "Sunroof / Panoramik Tavan", "Keyless Go / Keyless Entry", "Apple CarPlay / Android Auto"],
+          durum: "Aktif",
+          qr_slug: `audi-a4-${Math.floor(1000 + Math.random() * 9000)}`
+        }
+      ]
+
+      const { data, error } = await supabase
+        .from("araclar")
+        .insert(mockCars)
+        .select()
+
+      if (error) throw error
+
+      setAraclar(data as Arac[])
+      alert("Hızlı test verileri başarıyla yüklendi! Araçlarınızı şimdi inceleyebilirsiniz.")
+    } catch (err) {
+      console.error(err)
+      alert("Mock veri yüklenirken hata oluştu.")
+    } finally {
+      setMocking(false)
+    }
+  }
 
   useEffect(() => {
     if (!user) return
@@ -37,6 +129,47 @@ export default function PanelDashboard() {
 
     async function fetchDashboardData() {
       try {
+        // Galeri slug'ını getir
+        const { data: profile } = await supabase
+          .from("galeri_profilleri")
+          .select("slug")
+          .eq("user_id", userId)
+          .maybeSingle()
+
+        if (profile && profile.slug) {
+          setGaleriSlug(profile.slug)
+        } else {
+          // Profil yoksa (SQL göçünden önce açılan yarım hesap) otomatik oluştur (self-healing)
+          if (!user) return
+          const tempGaleriAdi = user.user_metadata?.galeri_adi || "Galerim"
+          let slug = `galeri-${Math.random().toString(36).substring(2, 8)}`
+          
+          // Çakışma kontrolü
+          const { data: checkData } = await supabase
+            .from("galeri_profilleri")
+            .select("id")
+            .eq("slug", slug)
+
+          if (checkData && checkData.length > 0) {
+            slug = `galeri-${Math.random().toString(36).substring(2, 8)}`
+          }
+
+          const { error: insertErr } = await supabase
+            .from("galeri_profilleri")
+            .insert({
+              user_id: userId,
+              galeri_adi: tempGaleriAdi,
+              slug: slug,
+              plan: "Essential",
+              adres: "Adres belirtilmemiş",
+              telefon: "Telefon belirtilmemiş",
+              calisma_saatleri: { hafta_ici: "09:00 - 19:00", hafta_sonu: "10:00 - 18:00" }
+            })
+
+          if (!insertErr) {
+            setGaleriSlug(slug)
+          }
+        }
         const { data: araclarData, error: araclarError } = await supabase
           .from("araclar")
           .select("*")
@@ -123,12 +256,28 @@ export default function PanelDashboard() {
             <p className="text-af-text-secondary text-sm max-w-sm mb-6">
               İlk aracınızı ekleyin, QR kodunu yazdırın ve müşterileriniz tüm detaylara anında ulaşsın.
             </p>
-            <Link
-              href="/panel/araclar/yeni"
-              className="flex items-center gap-2 bg-af-accent hover:bg-af-accent-hover text-white font-bold px-6 py-3 rounded-xl transition-all hover:shadow-xl hover:shadow-af-accent/25"
-            >
-              <Plus className="w-5 h-5" /> İlk Aracı Ekle
-            </Link>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center w-full max-w-md mx-auto">
+              <Link
+                href="/panel/araclar/yeni"
+                className="flex-1 flex items-center justify-center gap-2 bg-af-accent hover:bg-af-accent-hover text-white font-bold px-6 py-3 rounded-xl transition-all hover:shadow-xl hover:shadow-af-accent/25 text-sm"
+              >
+                <Plus className="w-5 h-5" /> İlk Aracı Ekle
+              </Link>
+              <button
+                onClick={handleMockEkle}
+                disabled={mocking}
+                className="flex-1 flex items-center justify-center gap-2 bg-af-surface-2 border border-af-border hover:border-af-accent/40 disabled:opacity-50 text-white font-bold px-6 py-3 rounded-xl transition-all text-sm"
+              >
+                {mocking ? (
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 text-amber-400" />
+                    Test Verisi Yükle
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         )}
 

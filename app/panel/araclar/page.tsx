@@ -38,6 +38,25 @@ export default function AraclarPage() {
       })
   }, [user])
 
+  const handleSil = async (id: string) => {
+    const confirmDelete = window.confirm("Bu aracı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.")
+    if (!confirmDelete) return
+
+    try {
+      const { error } = await supabase
+        .from("araclar")
+        .delete()
+        .eq("id", id)
+
+      if (error) throw error
+
+      setAraclar((prev) => prev.filter((a) => a.id !== id))
+    } catch (err) {
+      console.error("Araç silinirken hata:", err)
+      alert("Araç silinemedi. Lütfen tekrar deneyin.")
+    }
+  }
+
   const filtrelenmis = araclar.filter((a) => {
     const aramaUyumu = aramaMetni === "" || `${a.marka} ${a.model} ${a.versiyon}`.toLowerCase().includes(aramaMetni.toLowerCase())
     const durumUyumu = durumFilter === "Tümü" || a.durum === durumFilter
@@ -183,7 +202,11 @@ export default function AraclarPage() {
                         <Link href={`/panel/araclar/${arac.id}/duzenle`} className="p-1.5 rounded-lg text-af-text-disabled hover:text-af-info hover:bg-af-info/10 transition-colors" title="Düzenle">
                           <Edit2 className="w-4 h-4" />
                         </Link>
-                        <button className="p-1.5 rounded-lg text-af-text-disabled hover:text-af-error hover:bg-af-error/10 transition-colors" title="Sil">
+                        <button
+                          onClick={() => handleSil(arac.id)}
+                          className="p-1.5 rounded-lg text-af-text-disabled hover:text-af-error hover:bg-af-error/10 transition-colors"
+                          title="Sil"
+                        >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -231,6 +254,13 @@ export default function AraclarPage() {
                       <Link href={`/panel/araclar/${arac.id}/duzenle`} className="p-1.5 rounded-lg bg-af-surface-2 text-af-text-disabled hover:text-af-info transition-colors">
                         <Edit2 className="w-4 h-4" />
                       </Link>
+                      <button
+                        onClick={() => handleSil(arac.id)}
+                        className="p-1.5 rounded-lg bg-af-surface-2 text-af-text-disabled hover:text-af-error hover:bg-af-error/10 transition-colors"
+                        title="Sil"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
                 </div>

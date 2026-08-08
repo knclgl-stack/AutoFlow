@@ -24,7 +24,7 @@ export function AracKarti({ arac, href, className }: AracKartiProps) {
           arac.durum === "Satildi" && "opacity-60"
         )}>
           <div className="relative overflow-hidden bg-af-surface-2" style={{ aspectRatio: "16/10" }}>
-            <img src={arac.fotograflar[0]} alt={getAracBaslik(arac)} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+            <img src={arac.fotograflar?.[0] || "/placeholder-car.png"} alt={getAracBaslik(arac)} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
             <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
             <div className="absolute top-3 left-3"><DurumRozeti durum={arac.durum} size="sm" /></div>
             <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-sm text-white text-xs font-bold px-2.5 py-0.5 rounded-full">{arac.yil}</div>

@@ -20,7 +20,11 @@ import {
   Clock,
   Globe,
   Instagram,
-  Image,
+  Image as ImageIcon,
+  Upload,
+  Camera,
+  Trash2,
+  Loader2
 } from "lucide-react"
 
 function galeriSlugOlustur(galeriAdi: string): string {
@@ -49,9 +53,12 @@ export default function AyarlarPage() {
     sehir: "",
     calismaHaftaIci: "09:00 - 19:00",
     calismaHaftaSonu: "10:00 - 18:00",
+    slug: "",
+    plan: "Essential",
   })
 
   const [profilYukleniyor, setProfilYukleniyor] = useState(false)
+  const [logoUploading, setLogoUploading] = useState(false)
   const [veriYukleniyor, setVeriYukleniyor] = useState(true)
   const [profilMesaj, setProfilMesaj] = useState<{ tip: "basarili" | "hata"; metin: string } | null>(null)
 
@@ -85,12 +92,15 @@ export default function AyarlarPage() {
             sehir: data.sehir || "",
             calismaHaftaIci: data.calisma_saatleri?.hafta_ici || "09:00 - 19:00",
             calismaHaftaSonu: data.calisma_saatleri?.hafta_sonu || "10:00 - 18:00",
+            slug: data.slug || "",
+            plan: data.plan || "Essential",
           })
         } else {
           setProfil((prev) => ({
             ...prev,
             adSoyad: user.user_metadata?.ad_soyad || "",
             galeriAdi: user.user_metadata?.galeri_adi || "",
+            slug: galeriSlugOlustur(user.user_metadata?.galeri_adi || ""),
           }))
         }
       } catch (err) {
@@ -102,6 +112,76 @@ export default function AyarlarPage() {
 
     profilYukle()
   }, [user])
+
+  const compressLogoImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.readAsDataURL(file)
+      reader.onload = (event) => {
+        const img = new Image()
+        img.src = event.target?.result as string
+        img.onload = () => {
+          const canvas = document.createElement("canvas")
+          let width = img.width, height = img.height
+          const MAX = 400
+          if (width > MAX || height > MAX) {
+            if (width > height) {
+              height = Math.round((height * MAX) / width)
+              width = MAX
+            } else {
+              width = Math.round((width * MAX) / height)
+              height = MAX
+            }
+          }
+          canvas.width = width
+          canvas.height = height
+          const ctx = canvas.getContext("2d")!
+          ctx.drawImage(img, 0, 0, width, height)
+          resolve(canvas.toDataURL("image/jpeg", 0.8))
+        }
+        img.onerror = reject
+      }
+      reader.onerror = reject
+    })
+  }
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !user) return
+
+    setLogoUploading(true)
+    try {
+      const compressedBase64 = await compressLogoImage(file)
+      
+      let uploadedUrl: string | null = null
+      try {
+        const fileName = `${user.id}/logo-${Date.now()}.jpg`
+        // Data URL'den Blob oluştur
+        const res = await fetch(compressedBase64)
+        const blob = await res.blob()
+
+        const { error: uploadErr } = await supabase.storage
+          .from("araclar")
+          .upload(fileName, blob, { contentType: "image/jpeg", upsert: true })
+        
+        if (!uploadErr) {
+          const { data: { publicUrl } } = supabase.storage
+            .from("araclar")
+            .getPublicUrl(fileName)
+          uploadedUrl = publicUrl
+        }
+      } catch (err) {
+        console.warn("Storage upload fallback to base64", err)
+      }
+
+      const finalUrl = uploadedUrl || compressedBase64
+      setProfil((prev) => ({ ...prev, logoUrl: finalUrl }))
+    } catch (err) {
+      console.error("Logo işleme hatası:", err)
+    } finally {
+      setLogoUploading(false)
+    }
+  }
 
   async function handleProfilKaydet(e: React.FormEvent) {
     e.preventDefault()
@@ -120,18 +200,28 @@ export default function AyarlarPage() {
 
     if (authError) {
       setProfilYukleniyor(false)
-      setProfilMesaj({ tip: "hata", metin: "Kullanıcı bilgileri güncellenemedi." })
+      setProfilMesaj({ tip: "hata", metin: "Kullanıcı bilgileri güncellenemedi: " + authError.message })
       return
     }
 
     // 2. galeri_profilleri tablosunu güncelle/oluştur (upsert)
-    const slug = galeriSlugOlustur(profil.galeriAdi)
+    const isPremium = profil.plan === "Elite" || profil.plan === "Professional"
+    let finalSlug = ""
+    if (isPremium) {
+      finalSlug = profil.slug ? galeriSlugOlustur(profil.slug) : galeriSlugOlustur(profil.galeriAdi)
+    } else {
+      finalSlug = profil.slug && profil.slug.startsWith("galeri-") 
+        ? profil.slug 
+        : `galeri-${Math.random().toString(36).substring(2, 8)}`
+    }
+
     const { error: profileError } = await supabase
       .from("galeri_profilleri")
       .upsert({
         user_id: user.id,
         galeri_adi: profil.galeriAdi,
-        slug: slug,
+        logo_url: profil.logoUrl,
+        slug: finalSlug,
         telefon: profil.telefon,
         whatsapp: profil.whatsapp,
         instagram: profil.instagram,
@@ -142,15 +232,18 @@ export default function AyarlarPage() {
           hafta_ici: profil.calismaHaftaIci,
           hafta_sonu: profil.calismaHaftaSonu,
         },
-      })
+      }, { onConflict: "user_id" })
 
     setProfilYukleniyor(false)
     if (profileError) {
-      console.error(profileError)
-      setProfilMesaj({ tip: "hata", metin: "Galeri profili güncellenirken hata oluştu." })
+      console.error("Profile error:", profileError)
+      let metin = profileError.message || "Galeri profili güncellenirken hata oluştu."
+      if (profileError.message?.includes("duplicate key") || profileError.code === "23505") {
+        metin = "Bu sayfa adresi (slug) başka bir galeri tarafından kullanılıyor. Lütfen farklı bir adres girin."
+      }
+      setProfilMesaj({ tip: "hata", metin })
     } else {
       setProfilMesaj({ tip: "basarili", metin: "Profil ve galeri bilgileriniz başarıyla güncellendi." })
-      // Slug değiştiğinde yönlendirmeler ve header'daki isimler güncellensin diye sayfayı yenileyelim
       setTimeout(() => {
         window.location.reload()
       }, 1000)
@@ -223,6 +316,56 @@ export default function AyarlarPage() {
             <h2 className="font-bold text-af-text">Profil ve Galeri Bilgileri</h2>
           </div>
 
+          {/* Galeri Logosu / Profil Fotoğrafı */}
+          <div className="p-4 bg-af-surface-2/40 border border-af-border rounded-xl space-y-3">
+            <label className="block text-af-text-secondary text-sm font-medium">Galeri Logosu / Profil Fotoğrafı</label>
+            <div className="flex items-center gap-4">
+              <div className="w-20 h-20 rounded-2xl bg-af-surface border border-af-border overflow-hidden flex items-center justify-center text-af-text-disabled flex-shrink-0 relative group">
+                {profil.logoUrl ? (
+                  <img src={profil.logoUrl} alt="Galeri Logosu" className="w-full h-full object-cover" />
+                ) : (
+                  <Building2 className="w-8 h-8 text-af-text-disabled" />
+                )}
+                {logoUploading && (
+                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                    <Loader2 className="w-6 h-6 text-af-accent animate-spin" />
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <input
+                  id="logo-file-input"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleLogoUpload}
+                  className="hidden"
+                />
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById("logo-file-input")?.click()}
+                    disabled={logoUploading}
+                    className="flex items-center gap-2 bg-af-accent hover:bg-af-accent-hover text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-md shadow-af-accent/15 disabled:opacity-50"
+                  >
+                    <Upload className="w-3.5 h-3.5" /> Logo Yükle
+                  </button>
+                  {profil.logoUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setProfil((prev) => ({ ...prev, logoUrl: "" }))}
+                      className="p-2.5 rounded-xl bg-af-surface hover:bg-af-error/10 text-af-text-disabled hover:text-af-error border border-af-border transition-colors"
+                      title="Logoyu Kaldır"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                <p className="text-[11px] text-af-text-disabled">PNG veya JPG formatında logo veya profil görseliniz</p>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Ad Soyad */}
             <div>
@@ -255,6 +398,41 @@ export default function AyarlarPage() {
                 />
               </div>
             </div>
+          </div>
+
+          {/* Özel Slug (Alan adı) Seçimi */}
+          <div className="border-t border-af-border/60 pt-4">
+            <label className="block text-af-text-secondary text-sm font-medium mb-1.5 flex items-center justify-between">
+              <span>Galeri Sayfa Adresi (Slug)</span>
+              {profil.plan !== "Elite" && profil.plan !== "Professional" ? (
+                <span className="text-[10px] bg-af-accent/10 text-af-accent border border-af-accent/20 px-2.5 py-0.5 rounded-full font-bold">
+                  Professional & Elite Özelliği
+                </span>
+              ) : (
+                <span className="text-[10px] bg-amber-500/10 text-amber-500 border border-amber-500/20 px-2.5 py-0.5 rounded-full font-bold">
+                  Özel Slug Aktif
+                </span>
+              )}
+            </label>
+            <div className="flex rounded-xl bg-af-surface-2 border border-af-border overflow-hidden">
+              <span className="flex items-center px-3.5 text-xs text-af-text-disabled bg-af-bg border-r border-af-border select-none">
+                autoflow.com.tr/galeri/
+              </span>
+              <input
+                type="text"
+                value={profil.slug}
+                disabled={profil.plan !== "Elite" && profil.plan !== "Professional"}
+                onChange={(e) => setProfil({ ...profil, slug: e.target.value })}
+                placeholder="galeri-adiniz"
+                className="flex-1 bg-transparent px-4 py-3 text-af-text disabled:text-af-text-disabled placeholder:text-af-text-disabled text-sm focus:outline-none disabled:cursor-not-allowed"
+              />
+            </div>
+            <p className="text-af-text-disabled text-xs mt-1.5">
+              {profil.plan !== "Elite" && profil.plan !== "Professional" 
+                ? "Mevcut ücretsiz planınızda sayfa adresi galeri isminden otomatik oluşturulur." 
+                : "Sayfa adresinizde Türkçe karakter kullanılamaz, kelimeler tire (-) ile ayrılır."
+              }
+            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

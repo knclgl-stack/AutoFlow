@@ -20,12 +20,25 @@ export default function QrPage() {
   const [yukleniyor, setYukleniyor] = useState(true)
   const [aramaMetni, setAramaMetni] = useState("")
   const [aktifQr, setAktifQr] = useState<string | null>(null)
+  const [galleryName, setGalleryName] = useState("")
 
   useEffect(() => {
     if (!user) return
 
     const params = new URLSearchParams(window.location.search)
     const urlAracId = params.get("arac")
+
+    // Galeri adını getir
+    supabase
+      .from("galeri_profilleri")
+      .select("galeri_adi")
+      .eq("user_id", user.id)
+      .single()
+      .then(({ data }) => {
+        if (data && data.galeri_adi) {
+          setGalleryName(data.galeri_adi)
+        }
+      })
 
     supabase
       .from("araclar")
@@ -146,6 +159,7 @@ export default function QrPage() {
                               size={180}
                               showDownload
                               showActions
+                              galleryName={galleryName}
                             />
                           </div>
                         )}
@@ -183,6 +197,7 @@ export default function QrPage() {
                       size={200}
                       showDownload
                       showActions
+                      galleryName={galleryName}
                     />
 
                     <div className="mt-4 p-3 bg-af-accent/5 border border-af-accent/15 rounded-xl">

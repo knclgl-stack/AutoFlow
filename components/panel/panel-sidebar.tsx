@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Car, Plus, QrCode, BarChart3, Settings, LogOut, Sparkles, CreditCard, Shield } from "lucide-react"
+import { LayoutDashboard, Car, Plus, QrCode, BarChart3, Settings, LogOut, Sparkles, CreditCard, Shield, Receipt, HelpCircle, Menu, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { AfLogo } from "@/components/autoflow/af-logo"
 import { useAuth } from "@/lib/auth-context"
@@ -17,7 +17,9 @@ const navItems = [
   { href: "/panel/qr", icon: QrCode, label: "QR Kodlar" },
   { href: "/panel/analitik", icon: BarChart3, label: "Analitik" },
   { href: "/panel/flow-ai", icon: Sparkles, label: "Flow AI" },
-  { href: "/panel/abonelik", icon: CreditCard, label: "Abonelik Yönetimi" },
+  { href: "/panel/fatura", icon: Receipt, label: "Fatura & Muhasebe" },
+  { href: "/panel/abonelik", icon: CreditCard, label: "Abonelik" },
+  { href: "/panel/destek", icon: HelpCircle, label: "Destek & Yardım" },
 ]
 
 export function PanelSidebar() {
@@ -26,6 +28,12 @@ export function PanelSidebar() {
   const isActive = (href: string) => href === "/panel" ? pathname === "/panel" : pathname.startsWith(href)
 
   const [dbPlan, setDbPlan] = useState<string>("Essential")
+  const [mobileOpen, setMobileOpen] = useState(false)
+
+  // Sayfa değiştiğinde mobil menüyü kapat
+  useEffect(() => {
+    setMobileOpen(false)
+  }, [pathname])
 
   useEffect(() => {
     if (!user) return
@@ -54,12 +62,18 @@ export function PanelSidebar() {
     .join("")
     .toUpperCase()
 
-  return (
-    <aside className="w-64 h-screen bg-af-bg border-r border-af-border flex flex-col fixed left-0 top-0 z-40">
-      <div className="px-4 py-3 border-b border-af-border">
-        <Link href="/">
-          <AfLogo variant="sidebar" size={42} />
+  const sidebarContent = (
+    <>
+      <div className="h-16 flex items-center justify-between px-5 border-b border-af-border">
+        <Link href="/" className="block">
+          <AfLogo variant="sidebar" size={32} />
         </Link>
+        <button
+          onClick={() => setMobileOpen(false)}
+          className="lg:hidden p-1.5 rounded-lg text-af-text-disabled hover:text-white"
+        >
+          <X className="w-5 h-5" />
+        </button>
       </div>
 
       <div className="px-4 py-3 mx-3 mt-4 rounded-xl bg-af-surface border border-af-border">
@@ -110,7 +124,6 @@ export function PanelSidebar() {
       </nav>
 
       <div className="p-3 border-t border-af-border space-y-0.5">
-        {/* Kullanıcı bilgisi */}
         <div className="flex items-center gap-3 px-3 py-2.5 mb-1">
           <div className="w-8 h-8 rounded-xl bg-af-accent flex items-center justify-center text-white text-xs font-black flex-shrink-0">
             {initials || "?"}
@@ -130,6 +143,37 @@ export function PanelSidebar() {
           <LogOut className="w-4 h-4" />Çıkış Yap
         </button>
       </div>
-    </aside>
+    </>
+  )
+
+  return (
+    <>
+      {/* MASAÜSTÜ SIDEBAR */}
+      <aside className="hidden lg:flex w-64 h-screen bg-af-bg border-r border-af-border flex-col fixed left-0 top-0 z-40">
+        {sidebarContent}
+      </aside>
+
+      {/* MOBİL HIZLI MENÜ DÜĞMESİ (SOL ÜST YÜZEN BUTON) */}
+      <button
+        onClick={() => setMobileOpen(true)}
+        className="lg:hidden fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-af-accent text-white shadow-2xl flex items-center justify-center border border-white/20 active:scale-95 transition-all"
+        title="Menüyü Aç"
+      >
+        <Menu className="w-6 h-6" />
+      </button>
+
+      {/* MOBİL DRAWER OVERLAY */}
+      {mobileOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 flex">
+          <div
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm transition-opacity"
+            onClick={() => setMobileOpen(false)}
+          />
+          <aside className="relative w-72 max-w-[85vw] h-full bg-af-bg border-r border-af-border flex flex-col shadow-2xl z-10 animate-in slide-in-from-left duration-300">
+            {sidebarContent}
+          </aside>
+        </div>
+      )}
+    </>
   )
 }

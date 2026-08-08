@@ -11,10 +11,10 @@ export default async function PanelLayout({ children }: { children: React.ReactN
   }
 
   return (
-    <div className="min-h-screen bg-slate-950">
+    <div className="min-h-screen bg-af-bg text-af-text">
       <PanelSidebar />
-      {/* Ana içerik — sidebar kadar offset */}
-      <div className="ml-64 flex flex-col min-h-screen">
+      {/* Ana içerik — masaüstünde sidebar kadar offset, mobilde sıfır offset */}
+      <div className="ml-0 lg:ml-64 flex flex-col min-h-screen">
         {children}
       </div>
     </div>

@@ -6,6 +6,7 @@ import Link from "next/link"
 import { FotografGalerisi } from "@/components/autoflow/fotograf-galerisi"
 import { DurumRozeti } from "@/components/autoflow/durum-rozeti"
 import { IletisimButonlari } from "@/components/autoflow/iletisim-butonlari"
+import { ArabaKrokisi } from "@/components/autoflow/araba-krokisi"
 import { formatFiyat, formatKm, getOzellikIcon } from "@/lib/arac-helpers"
 import { Arac, Galeri } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -33,6 +34,8 @@ const SPEC_SECTIONS = [
     items: (a: Arac) => [
       { label: "Hasar Kaydı", value: a.hasar_kaydi ? "Var ⚠️" : "Yok ✅" },
       { label: "Boyalı Parça", value: a.boyali_parca === 0 ? "Yok ✅" : `${a.boyali_parca} parça` },
+      { label: "Tramer Kaydı", value: (a.tramer_kaydi ?? false) ? `Var (⚠️ ${(a.tramer_detay ?? []).length} kayıt)` : "Yok ✅" },
+      { label: "Ağır Hasar", value: (a.agir_hasar_kaydi ?? false) ? "Var ⚠️" : "Yok ✅" },
       { label: "Araç Durumu", value: a.durum === "Aktif" ? "Satışta" : a.durum === "Satildi" ? "Satıldı" : "Pasif" },
       { label: "Renk", value: a.renk },
     ],
@@ -166,6 +169,16 @@ export function AracDetayClient({ arac, galeri }: AracDetayClientProps) {
             ))}
           </div>
 
+          {/* AÇIKLAMA */}
+          {arac.aciklama && (
+            <div className="mt-5 bg-af-surface rounded-2xl border border-af-border p-5">
+              <h3 className="font-bold text-white text-sm mb-2.5">Araç Açıklaması</h3>
+              <p className="text-af-text-secondary text-sm leading-relaxed whitespace-pre-line">
+                {arac.aciklama}
+              </p>
+            </div>
+          )}
+
           {/* TEKNİK DETAYLAR Accordion */}
           <div className="mt-5">
             <button onClick={() => setSpecsOpen((s) => !s)}
@@ -188,6 +201,40 @@ export function AracDetayClient({ arac, galeri }: AracDetayClientProps) {
                     </div>
                   </div>
                 ))}
+
+                {/* Boyalı Parça Krokisi */}
+                {(arac.boyali_parcalar ?? []).length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-xs font-semibold text-af-text-disabled uppercase tracking-wider mb-2 px-1">Boyalı Parça Krokisi</p>
+                    <div className="bg-af-surface rounded-xl border border-af-border p-4">
+                      <ArabaKrokisi
+                        boyaliParcalar={arac.boyali_parcalar ?? []}
+                        readOnly
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Tramer Detay Tablosu */}
+                {(arac.tramer_kaydi ?? false) && (arac.tramer_detay ?? []).length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-xs font-semibold text-af-text-disabled uppercase tracking-wider mb-2 px-1">Tramer Kayıtları</p>
+                    <div className="bg-af-surface rounded-xl border border-af-border overflow-hidden">
+                      <div className="grid grid-cols-2 bg-af-surface-2 px-4 py-2 border-b border-af-border">
+                        <span className="text-xs font-semibold text-af-text-disabled uppercase tracking-wider">Yıl</span>
+                        <span className="text-xs font-semibold text-af-text-disabled uppercase tracking-wider">Tutar</span>
+                      </div>
+                      {(arac.tramer_detay ?? []).map((t: { yil: number; tutar: number }, i: number) => (
+                        <div key={i} className="grid grid-cols-2 px-4 py-3 border-b border-af-border last:border-b-0">
+                          <span className="text-sm font-semibold text-af-text">{t.yil}</span>
+                          <span className="text-sm text-af-text-secondary">
+                            {t.tutar ? `₺${Number(t.tutar).toLocaleString("tr-TR")}` : "—"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -208,14 +255,29 @@ export function AracDetayClient({ arac, galeri }: AracDetayClientProps) {
           )}
 
           {/* GALERİ BİLGİSİ */}
-          <div className="mt-6 p-4 rounded-2xl border border-af-border bg-af-surface">
+          <div className={cn(
+            "mt-6 p-4 rounded-2xl border transition-all duration-300 bg-af-surface",
+            galeri.plan === "Elite" ? "border-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.05)]" : "border-af-border"
+          )}>
             <h2 className="font-bold text-af-text mb-3">Satıcı</h2>
             <div className="flex items-center gap-3 mb-3">
-              <div className="w-12 h-12 rounded-xl bg-af-accent flex items-center justify-center text-white font-black text-lg shadow-lg shadow-af-accent/25">
+              <div className={cn(
+                "w-12 h-12 rounded-xl flex items-center justify-center text-white font-black text-lg transition-all duration-300",
+                galeri.plan === "Elite" 
+                  ? "bg-gradient-to-br from-amber-400 to-amber-600 shadow-md shadow-amber-500/25 text-black" 
+                  : "bg-af-accent shadow-lg shadow-af-accent/25"
+              )}>
                 {initials}
               </div>
               <div>
-                <p className="font-bold text-af-text">{galeri.ad}</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-bold text-af-text">{galeri.ad}</p>
+                  {galeri.plan === "Elite" && (
+                    <span className="text-[9px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded-md">
+                      ELİTE
+                    </span>
+                  )}
+                </div>
                 <span className="text-xs text-af-accent bg-af-accent/10 px-2 py-0.5 rounded-full border border-af-accent/20">Yetkili Galeri</span>
               </div>
             </div>

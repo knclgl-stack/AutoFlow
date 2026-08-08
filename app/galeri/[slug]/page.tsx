@@ -18,6 +18,7 @@ const YAKIT_FILTRELERI = ["Tümü", "Benzin", "Dizel", "Elektrik", "Hybrid", "LP
 interface GaleriProfil {
   user_id: string
   galeri_adi: string
+  logo_url?: string
   slug: string
   adres: string
   sehir: string
@@ -29,6 +30,7 @@ interface GaleriProfil {
     hafta_ici?: string
     hafta_sonu?: string
   }
+  plan?: string
 }
 
 export default function GaleriPage({ params }: PageProps) {
@@ -118,15 +120,22 @@ export default function GaleriPage({ params }: PageProps) {
 
   return (
     <div className="min-h-screen bg-af-bg text-af-text">
-      <div className="bg-af-surface border-b border-af-border">
+      <div className={cn(
+        "bg-af-surface border-b transition-all duration-300",
+        galeri.plan === "Elite" 
+          ? "border-amber-500/20 bg-gradient-to-b from-amber-950/10 to-af-surface shadow-[0_4px_30px_rgba(245,158,11,0.05)]" 
+          : "border-af-border"
+      )}>
         <div className="max-w-5xl mx-auto px-5 py-5">
           <div className="flex items-center justify-between mb-5">
-            <Link href="/"><AfLogo variant="sidebar" /></Link>
-            {user && (
+            <Link href="/" className="block overflow-hidden cursor-pointer z-10 relative">
+              <AfLogo variant="sidebar" />
+            </Link>
+            {user ? (
               <div className="flex items-center gap-3">
                 <Link
                   href="/panel"
-                  className="bg-af-accent hover:bg-af-accent-hover text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors"
+                  className="bg-af-accent hover:bg-af-accent-hover text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors shadow-md shadow-af-accent/15"
                 >
                   Panele Gir
                 </Link>
@@ -138,14 +147,50 @@ export default function GaleriPage({ params }: PageProps) {
                   <span className="hidden sm:block">Çıkış Yap</span>
                 </button>
               </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <Link
+                  href="/giris"
+                  className="text-af-text-secondary hover:text-white text-sm font-medium transition-colors"
+                >
+                  Giriş Yap
+                </Link>
+                <Link
+                  href="/kayit"
+                  className="bg-af-accent hover:bg-af-accent-hover text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-colors shadow-md shadow-af-accent/15"
+                >
+                  Ücretsiz Başla
+                </Link>
+              </div>
             )}
           </div>
           <div className="flex items-center gap-5">
-            <div className="w-16 h-16 rounded-2xl bg-af-accent flex items-center justify-center text-white font-black text-2xl shadow-xl shadow-af-accent/25 flex-shrink-0">
-              {initials || "G"}
+            <div className={cn(
+              "w-16 h-16 rounded-2xl flex items-center justify-center text-white font-black text-2xl flex-shrink-0 transition-all duration-300 overflow-hidden relative border border-white/10",
+              galeri.plan === "Elite"
+                ? "bg-gradient-to-br from-amber-400 to-amber-600 shadow-[0_0_20px_rgba(245,158,11,0.4)] text-black"
+                : "bg-af-accent shadow-xl shadow-af-accent/25"
+            )}>
+              {galeri.logo_url ? (
+                <img src={galeri.logo_url} alt={galeri.galeri_adi} className="w-full h-full object-cover" />
+              ) : (
+                initials || "G"
+              )}
             </div>
             <div className="flex-1 min-w-0">
-              <h1 className="text-2xl font-black text-af-text">{galeri.galeri_adi}</h1>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-x-3 gap-y-1">
+                <h1 className="text-2xl font-black text-af-text">{galeri.galeri_adi}</h1>
+                {galeri.plan === "Elite" && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider bg-amber-500/10 border border-amber-500/25 text-amber-400 px-2.5 py-0.5 rounded-full w-max">
+                    👑 Elite Üye
+                  </span>
+                )}
+                {galeri.plan === "Professional" && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider bg-af-info/10 border border-af-info/25 text-af-info px-2.5 py-0.5 rounded-full w-max">
+                    ★ Pro Galeri
+                  </span>
+                )}
+              </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5">
                 <span className="flex items-center gap-1.5 text-af-text-secondary text-sm">
                   <MapPin className="w-3.5 h-3.5 text-af-text-disabled" />
@@ -170,7 +215,10 @@ export default function GaleriPage({ params }: PageProps) {
               )}
             </div>
           </div>
-          <div className="flex gap-6 mt-5 pt-5 border-t border-af-border">
+          <div className={cn(
+            "flex gap-6 mt-5 pt-5 border-t",
+            galeri.plan === "Elite" ? "border-amber-500/10" : "border-af-border"
+          )}>
             <div><span className="text-2xl font-black text-af-accent">{aktifAraclar.length}</span><span className="text-af-text-secondary text-sm ml-1.5">Aktif Araç</span></div>
             <div className="w-px bg-af-border" />
             <div><span className="text-2xl font-black text-af-text-disabled">{satilanAraclar.length}</span><span className="text-af-text-secondary text-sm ml-1.5">Satılan</span></div>

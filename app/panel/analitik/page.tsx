@@ -5,6 +5,7 @@ import { PanelTopbar } from "@/components/panel/panel-topbar"
 import { useAuth } from "@/lib/auth-context"
 import { createClient } from "@/lib/supabase/client"
 import type { Arac, QrEvent } from "@/lib/types"
+import Link from "next/link"
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -18,6 +19,7 @@ export default function AnalitikPage() {
   const [araclar, setAraclar] = useState<Arac[]>([])
   const [events, setEvents] = useState<QrEvent[]>([])
   const [yukleniyor, setYukleniyor] = useState(true)
+  const [dbPlan, setDbPlan] = useState("Essential")
 
   useEffect(() => {
     if (!user) return
@@ -25,6 +27,17 @@ export default function AnalitikPage() {
     async function veriGetir() {
       if (!user) return
       try {
+        // 0. Planı getir
+        const { data: profile } = await supabase
+          .from("galeri_profilleri")
+          .select("plan")
+          .eq("user_id", user.id)
+          .single()
+
+        if (profile && profile.plan) {
+          setDbPlan(profile.plan)
+        }
+
         // 1. Kullanıcının araçlarını getir
         const { data: araclarData, error: araclarError } = await supabase
           .from("araclar")
@@ -137,7 +150,35 @@ export default function AnalitikPage() {
   return (
     <div className="flex flex-col min-h-screen bg-af-bg">
       <PanelTopbar baslik="Analitik" aciklama="Son 7 günlük performans" />
-      <main className="flex-1 p-6 space-y-6">
+      <main className="flex-1 p-6 space-y-6 relative">
+
+        {/* Essential Paketi Kilitli Ekranı */}
+        {!yukleniyor && dbPlan === "Essential" && (
+          <div className="absolute inset-0 bg-af-bg/85 backdrop-blur-md z-20 flex flex-col items-center justify-center text-center p-6 transition-all duration-300">
+            <div className="bg-af-surface border border-af-border rounded-3xl p-8 max-w-md shadow-[0_0_50px_rgba(0,0,0,0.8)] space-y-5">
+              <div className="w-16 h-16 rounded-2xl bg-af-accent/10 border border-af-accent/20 flex items-center justify-center mx-auto">
+                <BarChart3 className="w-8 h-8 text-af-accent animate-pulse" />
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-xl font-black text-white">Gelişmiş Analitik ve Raporlar</h2>
+                <p className="text-sm text-af-text-secondary leading-relaxed">
+                  Ziyaretçi sayıları, QR kod okutma oranları, WhatsApp dönüşümleri ve cihaz analitiği sadece **Professional** ve **Elite** paketlerinde mevcuttur.
+                </p>
+              </div>
+              <div className="bg-af-surface-2/60 border border-af-border rounded-xl p-4 text-xs text-af-text-disabled text-left space-y-1.5">
+                <div className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-af-accent" /> Son 7 günlük ziyaretçi trendleri</div>
+                <div className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-af-accent" /> Araç bazlı popülerlik sıralaması</div>
+                <div className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-af-accent" /> Müşteri cihaz ve konum dağılımları</div>
+              </div>
+              <Link
+                href="/panel/abonelik"
+                className="block bg-af-accent hover:bg-af-accent-hover text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg shadow-af-accent/20"
+              >
+                Paketimi Yükselt
+              </Link>
+            </div>
+          </div>
+        )}
 
         {/* Yükleniyor skeleton */}
         {yukleniyor && (

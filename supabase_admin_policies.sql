@@ -66,3 +66,5 @@ USING (
   auth.jwt() ->> 'email' = 'kaanclgl@gmail.com' OR
   auth.uid() = user_id -- Ya da galerinin kendi sahibiyse
 );
+-- boyali_parcalar kolonu ekle (jsonb array of part IDs)
+ALTER TABLE araclar ADD COLUMN IF NOT EXISTS boyali_parcalar jsonb DEFAULT '[]';

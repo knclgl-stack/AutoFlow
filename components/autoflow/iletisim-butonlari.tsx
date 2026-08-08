@@ -49,10 +49,13 @@ export function IletisimButonlari({ arac, galeri, variant = "sticky", eventId }:
   }
 
   const handleNativeShare = async () => {
+    const isPremium = galeri.plan === "Elite" || galeri.plan === "Professional"
+    const shareText = isPremium ? getAracTamBaslik(arac) : `${getAracTamBaslik(arac)} — AutoFlow`
+
     if (navigator.share) {
       await navigator.share({
         title: getAracTamBaslik(arac),
-        text: `${getAracTamBaslik(arac)} — AutoFlow`,
+        text: shareText,
         url: window.location.href,
       })
     } else {

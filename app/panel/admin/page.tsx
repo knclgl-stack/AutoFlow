@@ -1,59 +1,69 @@
-import { createClient } from "@/lib/supabase/server"
-import { redirect } from "next/navigation"
+"use client"
+
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import { useAuth } from "@/lib/auth-context"
 import { isAdmin } from "@/lib/admin"
+import { createClient } from "@/lib/supabase/client"
 import { AdminClient } from "./admin-client"
 
-export const dynamic = "force-dynamic"
+export default function AdminPage() {
+  const { user, loading: authLoading } = useAuth()
+  const router = useRouter()
+  const supabase = createClient()
 
-export default async function AdminPage() {
-  const supabase = await createClient()
-  
-  let user = null
-  try {
-    const { data } = await supabase.auth.getUser()
-    user = data.user
-  } catch (e) {
-    console.error("Yönetici kontrolünde yetki hatası:", e)
-  }
+  const [galleries, setGalleries] = useState<any[]>([])
+  const [vehicles, setVehicles] = useState<any[]>([])
+  const [scans, setScans] = useState<any[]>([])
+  const [dataLoading, setDataLoading] = useState(true)
 
-  if (!user || !isAdmin(user.email)) {
-    redirect("/panel")
-  }
+  useEffect(() => {
+    if (authLoading) return
 
-  let galleries: any[] = []
-  let vehicles: any[] = []
-  let scans: any[] = []
+    if (!user || !isAdmin(user.email)) {
+      router.push("/panel")
+      return
+    }
 
-  try {
-    // Tüm galerileri getir
-    const { data: gData, error: gErr } = await supabase
-      .from("galeri_profilleri")
-      .select("*")
-      .order("created_at", { ascending: false })
-    
-    if (gErr) console.warn("Galeriler çekilirken hata oluştu (RLS veya bağlantı):", gErr.message)
-    else if (gData) galleries = gData
+    async function fetchAdminData() {
+      try {
+        const [gResult, vResult, sResult] = await Promise.all([
+          supabase
+            .from("galeri_profilleri")
+            .select("*")
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("araclar")
+            .select("*")
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("qr_events")
+            .select("*")
+            .order("timestamp", { ascending: false })
+        ])
 
-    // Tüm araçları getir
-    const { data: vData, error: vErr } = await supabase
-      .from("araclar")
-      .select("*")
-      .order("created_at", { ascending: false })
+        if (gResult.data) setGalleries(gResult.data)
+        if (vResult.data) setVehicles(vResult.data)
+        if (sResult.data) setScans(sResult.data)
+      } catch (err) {
+        console.error("Yönetici paneli veri çekme hatası:", err)
+      } finally {
+        setDataLoading(false)
+      }
+    }
 
-    if (vErr) console.warn("Araçlar çekilirken hata oluştu (RLS veya bağlantı):", vErr.message)
-    else if (vData) vehicles = vData
+    fetchAdminData()
+  }, [user, authLoading, router, supabase])
 
-    // Tüm QR okutma verilerini getir
-    const { data: sData, error: sErr } = await supabase
-      .from("qr_events")
-      .select("*")
-      .order("timestamp", { ascending: false })
-
-    if (sErr) console.warn("QR okuma verileri çekilirken hata oluştu (RLS veya bağlantı):", sErr.message)
-    else if (sData) scans = sData
-
-  } catch (err) {
-    console.error("Yönetici paneli veritabanı sorgu hatası:", err)
+  if (authLoading || (!user || !isAdmin(user.email)) || dataLoading) {
+    return (
+      <div className="min-h-screen bg-af-bg flex items-center justify-center">
+        <div className="text-center">
+          <span className="w-10 h-10 border-4 border-af-accent/30 border-t-af-accent rounded-full animate-spin block mx-auto mb-4" />
+          <p className="text-af-text-secondary text-sm">Yönetici Paneli Yükleniyor...</p>
+        </div>
+      </div>
+    )
   }
 
   return (

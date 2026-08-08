@@ -2,17 +2,20 @@
 
 import { useState } from "react"
 import { PanelTopbar } from "@/components/panel/panel-topbar"
-import { Check, ChevronRight, Upload, Plus, X, AlertCircle, Loader2, Image as ImageIcon, Link as LinkIcon } from "lucide-react"
+import { Check, ChevronRight, Upload, Plus, X, AlertCircle, Loader2, Image as ImageIcon, Link as LinkIcon, Download } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
 import { createClient } from "@/lib/supabase/client"
+import { ArabaKrokisi } from "@/components/autoflow/araba-krokisi"
+import html2canvas from "html2canvas"
 
 const ADIMLAR = [
   { id: 1, baslik: "Temel Bilgiler", aciklama: "Marka, model, yıl" },
   { id: 2, baslik: "Teknik Bilgiler", aciklama: "Motor, vites, yakıt" },
   { id: 3, baslik: "Fotoğraflar", aciklama: "Görsel yükle" },
-  { id: 4, baslik: "Fiyat & Durum", aciklama: "Fiyat belirle" },
-  { id: 5, baslik: "Özet", aciklama: "Gözden geçir & kaydet" },
+  { id: 4, baslik: "Hasar Geçmişi", aciklama: "Tramer & ağır hasar" },
+  { id: 5, baslik: "Fiyat & Durum", aciklama: "Fiyat belirle" },
+  { id: 6, baslik: "Özet", aciklama: "Gözden geçir & kaydet" },
 ]
 
 const MARKALAR = ["BMW", "Mercedes-Benz", "Audi", "Toyota", "Volkswagen", "Ford", "Renault", "Peugeot", "Hyundai", "Kia", "Honda", "Volvo", "Land Rover", "Porsche", "Ferrari", "Lamborghini"]
@@ -20,6 +23,11 @@ const KASALAR = ["Sedan", "Hatchback", "SUV", "Coupe", "Pickup", "Cabrio", "Stat
 const VITESLER = ["Manuel", "Otomatik", "Yarı-Otomatik"]
 const YAKITLAR = ["Benzin", "Dizel", "Elektrik", "Hybrid", "LPG"]
 const RENKLER = ["Beyaz", "Siyah", "Gümüş", "Gri", "Kırmızı", "Mavi", "Lacivert", "Yeşil", "Sarı", "Turuncu", "Kahverengi", "Bordo"]
+
+interface TramerKayit {
+  yil: string
+  tutar: string
+}
 
 interface FormData {
   marka: string
@@ -34,12 +42,16 @@ interface FormData {
   kasa_tipi: string
   km: string
   hasar_kaydi: boolean
-  boyali_parca: string
+  boyali_parcalar: string[]
+  tramer_kaydi: boolean
+  tramer_detay: TramerKayit[]
+  agir_hasar_kaydi: boolean
   foto_urls: string[]
   fiyat: string
   fiyat_gizle: boolean
   pazarlik_var: boolean
   ozellikler: string[]
+  aciklama: string
 }
 
 const initialForm: FormData = {
@@ -47,10 +59,12 @@ const initialForm: FormData = {
   versiyon: "", renk: "",
   motor_hacmi: "", motor_gucu: "",
   vites: "Otomatik", yakit: "Benzin", kasa_tipi: "Sedan",
-  km: "", hasar_kaydi: false, boyali_parca: "0",
+  km: "", hasar_kaydi: false, boyali_parcalar: [],
+  tramer_kaydi: false, tramer_detay: [], agir_hasar_kaydi: false,
   foto_urls: [],
   fiyat: "", fiyat_gizle: false, pazarlik_var: false,
   ozellikler: [],
+  aciklama: "",
 }
 
 const POPULER_OZELLIKLER = [
@@ -105,12 +119,15 @@ export default function YeniAracPage() {
   const [aktifAdim, setAktifAdim] = useState(1)
   const [form, setForm] = useState<FormData>(initialForm)
   const [tamam, setTamam] = useState(false)
+  const [kaydedilenSlug, setKaydedilenSlug] = useState("")
+  const [galeriAdi, setGaleriAdi] = useState("")
   const [yeniFotoUrl, setYeniFotoUrl] = useState("")
   const [kaydediliyor, setKaydediliyor] = useState(false)
   const [hata, setHata] = useState("")
   const [uploadMode, setUploadMode] = useState<"file" | "url">("file")
   const [uploading, setUploading] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
+  const [yeniTramer, setYeniTramer] = useState<TramerKayit>({ yil: "", tutar: "" })
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
@@ -301,22 +318,42 @@ export default function YeniAracPage() {
       // Abonelik Planı & Limit Kontrolü
       const { data: profile } = await supabase
         .from("galeri_profilleri")
-        .select("plan")
+        .select("plan, galeri_adi")
         .eq("user_id", user.id)
         .single()
 
-      const userPlan = profile?.plan || "Essential"
+      const userPlan = (profile?.plan || "essentials").toLowerCase()
+      if (profile?.galeri_adi) setGaleriAdi(profile.galeri_adi)
 
-      if (userPlan === "Professional") {
+      // Essentials plan: maksimum 3 araç
+      if (userPlan === "essentials" || userPlan === "essential") {
         const { count, error: countErr } = await supabase
           .from("araclar")
           .select("id", { count: "exact", head: true })
           .eq("user_id", user.id)
 
-        if (!countErr && count !== null && count >= 10) {
-          throw new Error("Abonelik Limit Aşımı: Professional planınız kapsamında maksimum 10 araç ekleyebilirsiniz. Elite plana geçmek için yönetici ile iletişime geçin.")
+        if (!countErr && count !== null && count >= 3) {
+          throw new Error(
+            "Ücretsiz planda maksimum 3 araç ekleyebilirsiniz. Daha fazla araç eklemek için Professional veya Elite planına geçin."
+          )
         }
       }
+
+      // Professional plan: maksimum 12 araç
+      if (userPlan === "professional") {
+        const { count, error: countErr } = await supabase
+          .from("araclar")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user.id)
+
+        if (!countErr && count !== null && count >= 12) {
+          throw new Error(
+            "Professional planda maksimum 12 araç ekleyebilirsiniz. Sınırsız araç için Elite planına geçin."
+          )
+        }
+      }
+
+      // Elite plan: sınırsız — limit kontrolü yok
 
       // Benzersiz bir qr_slug üret (örn: af-491295)
       const randomId = Math.floor(100000 + Math.random() * 900000)
@@ -337,17 +374,23 @@ export default function YeniAracPage() {
         kasa_tipi: form.kasa_tipi,
         km: form.km ? parseInt(form.km) : 0,
         hasar_kaydi: form.hasar_kaydi,
-        boyali_parca: form.boyali_parca ? parseInt(form.boyali_parca) : 0,
+        boyali_parca: form.boyali_parcalar.length,
+        boyali_parcalar: form.boyali_parcalar,
+        tramer_kaydi: form.tramer_kaydi,
+        tramer_detay: form.tramer_detay.map((t) => ({ yil: parseInt(t.yil), tutar: parseFloat(t.tutar) })),
+        agir_hasar_kaydi: form.agir_hasar_kaydi,
         fotograflar: form.foto_urls.length > 0 ? form.foto_urls : ["/placeholder-car.png"],
         fiyat: form.fiyat ? parseFloat(form.fiyat) : null,
         fiyat_gizle: form.fiyat_gizle,
         pazarlik_var: form.pazarlik_var,
         ozellikler: form.ozellikler,
+        aciklama: form.aciklama,
         durum: "Aktif",
       })
 
       if (error) throw error
 
+      setKaydedilenSlug(qrSlug)
       setTamam(true)
     } catch (err: any) {
       console.error("Araç eklenirken hata oluştu:", err)
@@ -358,34 +401,145 @@ export default function YeniAracPage() {
   }
 
   if (tamam) {
+    const aracAdi = `${form.yil} ${form.marka} ${form.model}${form.versiyon ? ` ${form.versiyon}` : ""}`
+    const qrUrl = typeof window !== "undefined" ? `${window.location.origin}/arac/${kaydedilenSlug}` : `/arac/${kaydedilenSlug}`
+    const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrUrl)}&bgcolor=ffffff&color=0f172a&margin=12&qzone=1`
+    const galeriBaslik = galeriAdi || "AutoFlow"
+    const fiyatText = form.fiyat_gizle ? "Fiyat için iletişime geçin" : form.fiyat ? `₺${Number(form.fiyat).toLocaleString("tr-TR")}` : ""
+
+    const handleDownloadKart = async () => {
+      const element = document.getElementById("qr-card-download-preview")
+      if (!element) return
+      try {
+        const canvas = await html2canvas(element, {
+          useCORS: true,
+          scale: 3, // Very crisp high-res output for print
+          backgroundColor: "#ffffff",
+        })
+        const image = canvas.toDataURL("image/png")
+        const link = document.createElement("a")
+        link.href = image
+        link.download = `QR_Kart_${form.marka}_${form.model}.png`
+        link.click()
+      } catch (err) {
+        console.error("Görsel indirilirken hata oluştu:", err)
+      }
+    }
+
     return (
       <div className="flex flex-col min-h-screen bg-af-bg text-af-text">
-        <PanelTopbar baslik="Araç Ekle" />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center p-8 max-w-md mx-auto">
-            <div className="w-20 h-20 rounded-full bg-af-success flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-af-success/20">
-              <Check className="w-10 h-10 text-white" />
+        <PanelTopbar baslik="Araç Eklendi!" />
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div className="w-full max-w-sm mx-auto space-y-6">
+
+            {/* Success badge */}
+            <div className="text-center">
+              <div className="w-12 h-12 rounded-full bg-af-success/10 border border-af-success/20 flex items-center justify-center mx-auto mb-2">
+                <Check className="w-6 h-6 text-af-success" />
+              </div>
+              <h2 className="text-lg font-black text-af-text">{form.marka} {form.model} Eklendi!</h2>
+              <p className="text-af-text-secondary text-xs mt-0.5">QR tanıtım kartınız hazır — indirip araca yapıştırabilirsiniz</p>
             </div>
-            <h2 className="text-2xl font-black text-af-text mb-2">Araç Eklendi!</h2>
-            <p className="text-af-text-secondary mb-6">
-              {form.marka} {form.model} başarıyla eklendi. QR kodu otomatik oluşturuldu.
-            </p>
-            <div className="flex gap-3 justify-center">
-              <a href="/panel/araclar" className="bg-af-accent hover:bg-af-accent-hover text-white font-semibold px-6 py-2.5 rounded-xl transition-colors text-sm">
-                Araç Listesi
-              </a>
+
+            {/* QR Kart — Ekran Önizlemesi */}
+            <div 
+              id="qr-card-download-preview" 
+              className="bg-gradient-to-b from-[#111111] via-[#161616] to-[#0D0D0D] rounded-3xl p-6 shadow-2xl border border-[#FF7A00]/40 text-center relative overflow-hidden" 
+              style={{ fontFamily: "system-ui, sans-serif" }}
+            >
+              {/* Background decorative glowing lights */}
+              <div className="absolute -top-24 -left-24 w-48 h-48 rounded-full bg-[#FF7A00]/5 blur-3xl pointer-events-none" />
+              <div className="absolute -bottom-24 -right-24 w-48 h-48 rounded-full bg-[#FF7A00]/5 blur-3xl pointer-events-none" />
+
+              {/* Header */}
+              <div className="space-y-1 mb-5">
+                <div className="inline-flex items-center gap-1.5 bg-[#FF7A00]/10 border border-[#FF7A00]/30 rounded-full px-2.5 py-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#FF7A00] animate-pulse" />
+                  <span className="text-[9px] font-bold tracking-[2.5px] uppercase text-[#FF7A00]">AutoFlow</span>
+                </div>
+                <h3 className="text-lg font-black text-white tracking-tight">{galeriBaslik}</h3>
+                <p className="text-[10px] text-[#FF7A00]/80 font-bold uppercase tracking-[1.5px] mt-0.5">
+                  YOLUN YILDIZI SİZ OLUN
+                </p>
+                <div className="w-8 h-0.5 bg-[#FF7A00]/60 mx-auto mt-2" />
+              </div>
+
+              {/* QR Code Container */}
+              <div className="my-5 flex flex-col items-center">
+                <div className="bg-white border-2 border-[#FF7A00]/30 rounded-2xl p-3.5 shadow-[0_8px_30px_rgba(255,122,0,0.1)] inline-block">
+                  <img src={qrImgUrl} alt="QR Kod" width={160} height={160} className="rounded-lg block" />
+                </div>
+                <span className="text-[9px] font-black tracking-[2px] uppercase text-[#FF7A00] bg-[#FF7A00]/10 border border-[#FF7A00]/25 px-3 py-1 rounded-full mt-3">
+                  📱 TARAT VE İNCELE
+                </span>
+              </div>
+
+              {/* Vehicle info */}
+              <div className="space-y-1.5 my-4">
+                <h4 className="text-base font-black text-white leading-tight">{form.marka} {form.model}</h4>
+                <p className="text-[10px] text-slate-400 font-medium">
+                  {form.yil}{form.versiyon ? ` · ${form.versiyon}` : ""}{form.yakit ? ` · ${form.yakit}` : ""}{form.vites ? ` · ${form.vites}` : ""}{form.km ? ` · ${Number(form.km).toLocaleString("tr-TR")} km` : ""}
+                </p>
+              </div>
+
+              {/* Price section */}
+              {fiyatText && (
+                <div className="my-4">
+                  <div className="inline-block bg-[#FF7A00]/15 border border-[#FF7A00]/30 text-[#FF7A00] text-sm font-black px-4 py-1.5 rounded-xl shadow-inner">
+                    {fiyatText}
+                    {form.pazarlik_var && (
+                      <span className="text-[9px] text-white/50 font-semibold ml-1.5 border-l border-white/20 pl-1.5">
+                        Pazarlığa Açık
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Footer marketing text */}
+              <div className="border-t border-[#2A2A2A] pt-4 mt-4 text-center">
+                <p className="text-[9px] text-slate-400 leading-relaxed font-medium">
+                  Aracın güncel fiyatı, detaylı ekspertiz raporu ve<br/>
+                  tramer geçmişini incelemek için kodu okutun.
+                </p>
+                <p className="text-[8px] text-[#FF7A00]/50 font-bold uppercase tracking-wider mt-2.5">
+                  autoflow.com.tr
+                </p>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="grid grid-cols-1 gap-2.5">
               <button
-                onClick={() => { setTamam(false); setForm(initialForm); setAktifAdim(1) }}
-                className="bg-af-surface hover:bg-af-surface-2 text-af-text-secondary font-semibold px-6 py-2.5 rounded-xl transition-colors text-sm"
+                onClick={handleDownloadKart}
+                className="w-full flex items-center justify-center gap-2 bg-[#FF7A00] hover:bg-[#FF8C1A] text-white font-bold py-3 rounded-xl text-sm transition-colors shadow-lg shadow-[#FF7A00]/20"
               >
-                Yeni Araç Ekle
+                <Download className="w-4 h-4" />
+                Tanıtım Kartını İndir (PNG)
               </button>
+              <div className="grid grid-cols-2 gap-2.5">
+                <a
+                  href="/panel/araclar"
+                  className="flex items-center justify-center gap-1.5 bg-af-surface-2 hover:bg-af-surface border border-af-border text-af-text-secondary font-semibold py-2.5 rounded-xl text-sm transition-colors"
+                >
+                  Araç Listesi
+                </a>
+                <button
+                  onClick={() => { setTamam(false); setForm(initialForm); setAktifAdim(1); setKaydedilenSlug("") }}
+                  className="flex items-center justify-center gap-1.5 bg-af-surface-2 hover:bg-af-surface border border-af-border text-af-text-secondary font-semibold py-2.5 rounded-xl text-sm transition-colors"
+                >
+                  Yeni Araç Ekle
+                </button>
+              </div>
             </div>
+
           </div>
         </div>
       </div>
     )
   }
+
+
 
   return (
     <div className="flex flex-col min-h-screen bg-af-bg text-af-text">
@@ -416,10 +570,15 @@ export default function YeniAracPage() {
                 )}>
                   {aktifAdim > adim.id ? <Check className="w-3.5 h-3.5" /> : adim.id}
                 </span>
-                <span className="hidden sm:inline">{adim.baslik}</span>
+                <span className={cn(
+                  "text-xs transition-all whitespace-nowrap",
+                  aktifAdim === adim.id ? "inline font-bold" : "hidden md:inline"
+                )}>
+                  {adim.baslik}
+                </span>
               </button>
               {idx < ADIMLAR.length - 1 && (
-                <div className={cn("w-6 h-px mx-1", aktifAdim > adim.id ? "bg-af-success/30" : "bg-af-border")} />
+                <div className={cn("w-4 sm:w-6 h-px mx-1 flex-shrink-0", aktifAdim > adim.id ? "bg-af-success/30" : "bg-af-border")} />
               )}
             </div>
           ))}
@@ -483,22 +642,25 @@ export default function YeniAracPage() {
               <FormField label="Kilometre" required>
                 <input className={inputClass} type="number" placeholder="ör. 12500" value={form.km} onChange={(e) => update("km", e.target.value)} />
               </FormField>
-              <div className="grid grid-cols-2 gap-4">
-                <FormField label="Hasar Kaydı">
-                  <div className="flex gap-3">
-                    {[{ label: "Yok ✅", value: false }, { label: "Var ⚠️", value: true }].map((opt) => (
-                      <button key={String(opt.value)} type="button"
-                        onClick={() => update("hasar_kaydi", opt.value)}
-                        className={cn("flex-1 py-2 rounded-xl text-sm border transition-all",
-                          form.hasar_kaydi === opt.value ? "bg-af-accent border-af-accent text-white font-semibold" : "bg-af-surface-2 border-af-border text-af-text-secondary"
-                        )}>{opt.label}</button>
-                    ))}
-                  </div>
-                </FormField>
-                <FormField label="Boyalı Parça Sayısı">
-                  <input className={inputClass} type="number" min="0" value={form.boyali_parca} onChange={(e) => update("boyali_parca", e.target.value)} />
-                </FormField>
-              </div>
+              <FormField label="Hasar Kaydı">
+                <div className="flex gap-3">
+                  {[{ label: "Yok ✅", value: false }, { label: "Var ⚠️", value: true }].map((opt) => (
+                    <button key={String(opt.value)} type="button"
+                      onClick={() => update("hasar_kaydi", opt.value)}
+                      className={cn("flex-1 py-2 rounded-xl text-sm border transition-all",
+                        form.hasar_kaydi === opt.value ? "bg-af-accent border-af-accent text-white font-semibold" : "bg-af-surface-2 border-af-border text-af-text-secondary"
+                      )}>{opt.label}</button>
+                  ))}
+                </div>
+              </FormField>
+              <FormField label={`Boyalı Parçalar${form.boyali_parcalar.length > 0 ? ` (${form.boyali_parcalar.length} parça)` : ""}`}>
+                <div className="bg-af-surface-2/40 rounded-xl border border-af-border p-4">
+                  <ArabaKrokisi
+                    boyaliParcalar={form.boyali_parcalar}
+                    onChange={(parcalar) => update("boyali_parcalar", parcalar)}
+                  />
+                </div>
+              </FormField>
               <FormField label="Donanımlar">
                 <div className="flex flex-wrap gap-2">
                   {POPULER_OZELLIKLER.map((oz) => (
@@ -635,8 +797,122 @@ export default function YeniAracPage() {
             </div>
           )}
 
-          {/* ADIM 4: Fiyat */}
+          {/* ADIM 4: Hasar Geçmişi */}
           {aktifAdim === 4 && (
+            <div className="space-y-6">
+              {/* Tramer Kaydı */}
+              <FormField label="Tramer Kaydı">
+                <div className="flex gap-3 mb-4">
+                  {[{ label: "Yok ✅", value: false }, { label: "Var ⚠️", value: true }].map((opt) => (
+                    <button key={String(opt.value)} type="button"
+                      onClick={() => update("tramer_kaydi", opt.value)}
+                      className={cn("flex-1 py-2.5 rounded-xl text-sm border transition-all font-semibold",
+                        form.tramer_kaydi === opt.value
+                          ? "bg-af-accent border-af-accent text-white"
+                          : "bg-af-surface-2 border-af-border text-af-text-secondary hover:border-af-border-light"
+                      )}
+                    >{opt.label}</button>
+                  ))}
+                </div>
+
+                {form.tramer_kaydi && (
+                  <div className="space-y-4">
+                    {/* Mevcut tramer kayıtları */}
+                    {form.tramer_detay.length > 0 && (
+                      <div className="rounded-xl border border-af-border divide-y divide-af-border overflow-hidden">
+                        <div className="grid grid-cols-3 bg-af-surface-2 px-4 py-2">
+                          <span className="text-xs font-semibold text-af-text-disabled uppercase tracking-wider">Yıl</span>
+                          <span className="text-xs font-semibold text-af-text-disabled uppercase tracking-wider">Tutar</span>
+                          <span />
+                        </div>
+                        {form.tramer_detay.map((t, i) => (
+                          <div key={i} className="grid grid-cols-3 items-center px-4 py-3 bg-af-surface">
+                            <span className="text-sm font-semibold text-af-text">{t.yil}</span>
+                            <span className="text-sm text-af-text-secondary">
+                              {t.tutar ? `₺${Number(t.tutar).toLocaleString("tr-TR")}` : "—"}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => update("tramer_detay", form.tramer_detay.filter((_, idx) => idx !== i))}
+                              className="ml-auto w-7 h-7 rounded-lg bg-af-error/10 hover:bg-af-error/20 text-af-error flex items-center justify-center transition-colors"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Yeni tramer kaydı ekle */}
+                    <div className="p-4 bg-af-surface-2/50 rounded-xl border border-af-border border-dashed">
+                      <p className="text-xs font-semibold text-af-text-disabled uppercase tracking-wider mb-3">Tramer Kaydı Ekle</p>
+                      <div className="grid grid-cols-2 gap-3 mb-3">
+                        <div className="space-y-1">
+                          <label className="text-xs text-af-text-secondary">Yıl</label>
+                          <input
+                            className={inputClass}
+                            type="number"
+                            placeholder="ör. 2022"
+                            min="1990"
+                            max={new Date().getFullYear()}
+                            value={yeniTramer.yil}
+                            onChange={(e) => setYeniTramer((p) => ({ ...p, yil: e.target.value }))}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs text-af-text-secondary">Tutar (₺)</label>
+                          <input
+                            className={inputClass}
+                            type="number"
+                            placeholder="ör. 45000"
+                            value={yeniTramer.tutar}
+                            onChange={(e) => setYeniTramer((p) => ({ ...p, tutar: e.target.value }))}
+                          />
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!yeniTramer.yil) return
+                          update("tramer_detay", [...form.tramer_detay, yeniTramer])
+                          setYeniTramer({ yil: "", tutar: "" })
+                        }}
+                        disabled={!yeniTramer.yil}
+                        className="w-full flex items-center justify-center gap-2 py-2 bg-af-accent hover:bg-af-accent-hover disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-sm font-semibold transition-colors"
+                      >
+                        <Plus className="w-4 h-4" /> Kaydı Ekle
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </FormField>
+
+              {/* Ağır Hasar Kaydı */}
+              <FormField label="Ağır Hasar Kaydı">
+                <div className="flex gap-3">
+                  {[{ label: "Yok ✅", value: false }, { label: "Var ⚠️", value: true }].map((opt) => (
+                    <button key={String(opt.value)} type="button"
+                      onClick={() => update("agir_hasar_kaydi", opt.value)}
+                      className={cn("flex-1 py-2.5 rounded-xl text-sm border transition-all font-semibold",
+                        form.agir_hasar_kaydi === opt.value
+                          ? "bg-af-accent border-af-accent text-white"
+                          : "bg-af-surface-2 border-af-border text-af-text-secondary hover:border-af-border-light"
+                      )}
+                    >{opt.label}</button>
+                  ))}
+                </div>
+                {form.agir_hasar_kaydi && (
+                  <div className="mt-3 flex items-start gap-2.5 bg-amber-500/5 border border-amber-500/20 rounded-xl p-3">
+                    <span className="text-amber-400 text-base leading-none mt-0.5">⚠️</span>
+                    <p className="text-amber-300/80 text-xs">Bu araçta ağır hasar kaydı bulunmaktadır. Detaylar araç sayfasında görünür.</p>
+                  </div>
+                )}
+              </FormField>
+            </div>
+          )}
+
+          {/* ADIM 5: Fiyat */}
+          {aktifAdim === 5 && (
             <div className="space-y-5">
               <FormField label="Satış Fiyatı (₺)">
                 <input
@@ -676,11 +952,20 @@ export default function YeniAracPage() {
                   </div>
                 </label>
               </div>
+
+              <FormField label="Araç Açıklaması">
+                <textarea
+                  className={cn(inputClass, "h-28 py-3 resize-none")}
+                  placeholder="Araç hakkında detaylı açıklama yazın... (Örn: Kazasız, boyasız, bakımları yeni yapılmıştır.)"
+                  value={form.aciklama}
+                  onChange={(e) => update("aciklama", e.target.value)}
+                />
+              </FormField>
             </div>
           )}
 
-          {/* ADIM 5: Özet */}
-          {aktifAdim === 5 && (
+          {/* ADIM 6: Özet */}
+          {aktifAdim === 6 && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 {[
@@ -692,6 +977,9 @@ export default function YeniAracPage() {
                   { label: "Km", value: form.km ? `${Number(form.km).toLocaleString("tr-TR")} km` : "—" },
                   { label: "Fiyat", value: form.fiyat_gizle ? "Gizli" : form.fiyat ? `₺${Number(form.fiyat).toLocaleString("tr-TR")}` : "—" },
                   { label: "Hasar", value: form.hasar_kaydi ? "Var" : "Yok" },
+                  { label: "Boyalı Parça", value: form.boyali_parcalar.length > 0 ? `${form.boyali_parcalar.length} parça` : "Yok" },
+                  { label: "Tramer", value: form.tramer_kaydi ? `${form.tramer_detay.length} kayıt` : "Yok" },
+                  { label: "Ağır Hasar", value: form.agir_hasar_kaydi ? "Var" : "Yok" },
                 ].map(({ label, value }) => (
                   <div key={label} className="bg-af-surface-2 rounded-xl p-3">
                     <p className="text-af-text-secondary text-xs mb-0.5">{label}</p>
@@ -707,6 +995,12 @@ export default function YeniAracPage() {
                 <p className="text-af-text-secondary text-xs mb-1">Donanımlar</p>
                 <p className="text-af-text text-sm font-semibold">{form.ozellikler.length} özellik seçildi</p>
               </div>
+              {form.aciklama && (
+                <div className="bg-af-surface-2 rounded-xl p-3">
+                  <p className="text-af-text-secondary text-xs mb-1">Açıklama</p>
+                  <p className="text-af-text text-sm font-semibold truncate">{form.aciklama}</p>
+                </div>
+              )}
 
               {hata && (
                 <div className="flex items-center gap-2.5 bg-af-error/10 border border-af-error/25 rounded-xl px-4 py-3 text-sm text-af-error">

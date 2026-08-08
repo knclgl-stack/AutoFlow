@@ -41,6 +41,9 @@ export const mockAraclar: Arac[] = [
     km: 12500,
     hasar_kaydi: false,
     boyali_parca: 0,
+    tramer_kaydi: false,
+    tramer_detay: [],
+    agir_hasar_kaydi: false,
     ozellikler: [
       'Isıtmalı Ön Koltuklar',
       'Panoramik Sunroof',
@@ -86,6 +89,9 @@ export const mockAraclar: Arac[] = [
     km: 28000,
     hasar_kaydi: false,
     boyali_parca: 1,
+    tramer_kaydi: false,
+    tramer_detay: [],
+    agir_hasar_kaydi: false,
     ozellikler: [
       'AMG Spor Paket',
       'Burmester Ses Sistemi',
@@ -129,6 +135,9 @@ export const mockAraclar: Arac[] = [
     km: 9800,
     hasar_kaydi: false,
     boyali_parca: 0,
+    tramer_kaydi: false,
+    tramer_detay: [],
+    agir_hasar_kaydi: false,
     ozellikler: [
       'S-Line Eksteriyor Paket',
       'quattro 4x4 Sistemi',
@@ -173,6 +182,9 @@ export const mockAraclar: Arac[] = [
     km: 54000,
     hasar_kaydi: false,
     boyali_parca: 2,
+    tramer_kaydi: false,
+    tramer_detay: [],
+    agir_hasar_kaydi: false,
     ozellikler: [
       'Hybrid Sistemi',
       'Toyota Safety Sense',
@@ -213,6 +225,9 @@ export const mockAraclar: Arac[] = [
     km: 31500,
     hasar_kaydi: false,
     boyali_parca: 0,
+    tramer_kaydi: false,
+    tramer_detay: [],
+    agir_hasar_kaydi: false,
     ozellikler: [
       'Dijital Kokpit',
       'LED Farlar',
@@ -250,6 +265,9 @@ export const mockAraclar: Arac[] = [
     km: 3200,
     hasar_kaydi: false,
     boyali_parca: 0,
+    tramer_kaydi: false,
+    tramer_detay: [],
+    agir_hasar_kaydi: false,
     ozellikler: [
       'Easy Link 9.3" Dokunmatik',
       'Geri Görüş Kamerası',
@@ -287,6 +305,9 @@ export const mockAraclar: Arac[] = [
     km: 18700,
     hasar_kaydi: false,
     boyali_parca: 0,
+    tramer_kaydi: false,
+    tramer_detay: [],
+    agir_hasar_kaydi: false,
     ozellikler: [
       'V8 5.0L Coyote Motor',
       'SYNC 4 Multimedya',

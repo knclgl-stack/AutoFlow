@@ -52,6 +52,10 @@ export interface Arac {
   km: number
   hasar_kaydi: boolean
   boyali_parca: number
+  boyali_parcalar?: string[]
+  tramer_kaydi: boolean
+  tramer_detay: { yil: number; tutar: number }[]
+  agir_hasar_kaydi: boolean
 
   // Donanım Listesi
   ozellikler: string[]
@@ -67,6 +71,8 @@ export interface Arac {
 
   // Durum
   durum: AracDurum
+
+  aciklama?: string
 
   // Meta
   created_at: string
