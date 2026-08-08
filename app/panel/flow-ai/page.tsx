@@ -35,6 +35,24 @@ interface CarColor {
   cssGradient: string
 }
 
+interface ShowroomConfig {
+  bg: string
+  floorColor: string
+  accent: string
+  spotlightColor: string
+  leftPanelColor: string
+  rightPanelColor: string
+  gridColor: string
+  reflectionOpacity: number
+  spotlightWidth: number
+  showNeonStrips: boolean
+  showSpotlight: boolean
+  showFloorGrid: boolean
+  name: string
+  studioDesc: string
+  lighting: string
+}
+
 /* ─────────────────────────────────────────────
    RENK PROFİLİ VERITABANI
    Her renk → kendi stüdyo teması
@@ -145,7 +163,7 @@ function detectDominantCarColor(imageData: Uint8ClampedArray, width: number, hei
 /* ─────────────────────────────────────────────
    STUDIO COMPOSITE GENERATOR
 ───────────────────────────────────────────── */
-async function createStudioComposite(transparentCarUrl: string, colorProfile: CarColor): Promise<string> {
+async function createStudioComposite(transparentCarUrl: string, config: ShowroomConfig): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image()
     img.crossOrigin = "anonymous"
@@ -158,96 +176,109 @@ async function createStudioComposite(transparentCarUrl: string, colorProfile: Ca
       canvas.height = H
       const ctx = canvas.getContext("2d")!
 
-      // 1. Showroom Wall background gradient (dark to color profile bg)
+      // Helper to parse hex to RGB
+      const hexToRgb = (hex: string): string => {
+        let clean = hex.trim()
+        if (clean.startsWith("#")) clean = clean.substring(1)
+        if (clean.length === 3) {
+          clean = clean[0] + clean[0] + clean[1] + clean[1] + clean[2] + clean[2]
+        }
+        if (clean.length === 6) {
+          const r = parseInt(clean.substring(0, 2), 16)
+          const g = parseInt(clean.substring(2, 4), 16)
+          const b = parseInt(clean.substring(4, 6), 16)
+          return `${r}, ${g}, ${b}`
+        }
+        return "128, 128, 128"
+      }
+
+      const accentRgb = hexToRgb(config.accent)
+      const spotlightRgb = hexToRgb(config.spotlightColor)
+      const leftPanelRgb = hexToRgb(config.leftPanelColor)
+      const rightPanelRgb = hexToRgb(config.rightPanelColor)
+      const gridRgb = hexToRgb(config.gridColor)
+
+      // 1. Showroom Wall background gradient (dark to wall color)
       const horizonY = H * 0.62
 
       const wallGrad = ctx.createLinearGradient(0, 0, 0, horizonY)
       wallGrad.addColorStop(0, "#050507")
       wallGrad.addColorStop(0.7, "#0c0c10")
-      wallGrad.addColorStop(1, colorProfile.bg)
+      wallGrad.addColorStop(1, config.bg)
       ctx.fillStyle = wallGrad
       ctx.fillRect(0, 0, W, horizonY)
 
       // 2. Glowing LED Lines / Neon strips on the Wall (futuristic showroom look)
-      const accentHex = colorProfile.accent
-      let accentRgb = "128, 128, 128"
-      if (accentHex.startsWith("#")) {
-        const hex = accentHex.substring(1)
-        if (hex.length === 6) {
-          const r = parseInt(hex.substring(0, 2), 16)
-          const g = parseInt(hex.substring(2, 4), 16)
-          const b = parseInt(hex.substring(4, 6), 16)
-          accentRgb = `${r}, ${g}, ${b}`
-        }
+      if (config.showNeonStrips) {
+        ctx.save()
+        ctx.strokeStyle = `rgba(${accentRgb}, 0.4)`
+        ctx.lineWidth = Math.max(2, H * 0.005)
+        ctx.shadowColor = `rgba(${accentRgb}, 0.8)`
+        ctx.shadowBlur = 15
+        
+        // Top strip
+        ctx.beginPath()
+        ctx.moveTo(0, horizonY - H * 0.25)
+        ctx.lineTo(W, horizonY - H * 0.25)
+        ctx.stroke()
+        
+        // Lower strip
+        ctx.beginPath()
+        ctx.moveTo(0, horizonY - H * 0.12)
+        ctx.lineTo(W, horizonY - H * 0.12)
+        ctx.stroke()
+        ctx.restore()
       }
-
-      // Draw two horizontal glowing wall strips
-      ctx.save()
-      ctx.strokeStyle = `rgba(${accentRgb}, 0.4)`
-      ctx.lineWidth = Math.max(2, H * 0.005)
-      ctx.shadowColor = `rgba(${accentRgb}, 0.8)`
-      ctx.shadowBlur = 15
-      
-      // Top strip
-      ctx.beginPath()
-      ctx.moveTo(0, horizonY - H * 0.25)
-      ctx.lineTo(W, horizonY - H * 0.25)
-      ctx.stroke()
-      
-      // Lower strip
-      ctx.beginPath()
-      ctx.moveTo(0, horizonY - H * 0.12)
-      ctx.lineTo(W, horizonY - H * 0.12)
-      ctx.stroke()
-      ctx.restore()
 
       // 3. Showroom Floor background gradient (reflective showroom floor)
       const floorGrad = ctx.createLinearGradient(0, horizonY, 0, H)
-      floorGrad.addColorStop(0, colorProfile.bg)
+      floorGrad.addColorStop(0, config.floorColor)
       floorGrad.addColorStop(0.3, "#060608")
       floorGrad.addColorStop(1, "#020203")
       ctx.fillStyle = floorGrad
       ctx.fillRect(0, horizonY, W, H - horizonY)
 
       // 4. Perspective Grid on the floor (tiles)
-      ctx.save()
-      ctx.strokeStyle = `rgba(${accentRgb}, 0.04)`
-      ctx.lineWidth = 1
-      // Horizontal grid lines (perspective spacing)
-      let currentY = horizonY
-      let spacing = (H - horizonY) * 0.05
-      while (currentY < H) {
-        ctx.beginPath()
-        ctx.moveTo(0, currentY)
-        ctx.lineTo(W, currentY)
-        ctx.stroke()
-        spacing *= 1.45 // wider spacing as it gets closer
-        currentY += spacing
+      if (config.showFloorGrid) {
+        ctx.save()
+        ctx.strokeStyle = `rgba(${gridRgb}, 0.04)`
+        ctx.lineWidth = 1
+        // Horizontal grid lines (perspective spacing)
+        let currentY = horizonY
+        let spacing = (H - horizonY) * 0.05
+        while (currentY < H) {
+          ctx.beginPath()
+          ctx.moveTo(0, currentY)
+          ctx.lineTo(W, currentY)
+          ctx.stroke()
+          spacing *= 1.45 // wider spacing as it gets closer
+          currentY += spacing
+        }
+        // Perspective radial lines
+        const lineCount = 12
+        for (let i = 0; i <= lineCount; i++) {
+          const xFloor = (i / lineCount) * W * 2.5 - W * 0.75
+          ctx.beginPath()
+          ctx.moveTo(W / 2, horizonY)
+          ctx.lineTo(xFloor, H)
+          ctx.stroke()
+        }
+        ctx.restore()
       }
-      // Perspective radial lines
-      const lineCount = 12
-      for (let i = 0; i <= lineCount; i++) {
-        const xFloor = (i / lineCount) * W * 2.5 - W * 0.75
-        ctx.beginPath()
-        ctx.moveTo(W / 2, horizonY)
-        ctx.lineTo(xFloor, H)
-        ctx.stroke()
-      }
-      ctx.restore()
 
       // 5. Overhead Light Panels (Reflected on the Floor)
       // Left panel reflection
       const leftRef = ctx.createLinearGradient(W * 0.25, horizonY, W * 0.25, H)
-      leftRef.addColorStop(0, `rgba(${accentRgb}, 0.12)`)
-      leftRef.addColorStop(0.5, `rgba(${accentRgb}, 0.04)`)
+      leftRef.addColorStop(0, `rgba(${leftPanelRgb}, 0.12)`)
+      leftRef.addColorStop(0.5, `rgba(${leftPanelRgb}, 0.04)`)
       leftRef.addColorStop(1, "rgba(0, 0, 0, 0)")
       ctx.fillStyle = leftRef
       ctx.fillRect(W * 0.15, horizonY, W * 0.2, H - horizonY)
 
       // Right panel reflection
       const rightRef = ctx.createLinearGradient(W * 0.75, horizonY, W * 0.75, H)
-      rightRef.addColorStop(0, `rgba(${accentRgb}, 0.12)`)
-      rightRef.addColorStop(0.5, `rgba(${accentRgb}, 0.04)`)
+      rightRef.addColorStop(0, `rgba(${rightPanelRgb}, 0.12)`)
+      rightRef.addColorStop(0.5, `rgba(${rightPanelRgb}, 0.04)`)
       rightRef.addColorStop(1, "rgba(0, 0, 0, 0)")
       ctx.fillStyle = rightRef
       ctx.fillRect(W * 0.65, horizonY, W * 0.2, H - horizonY)
@@ -294,36 +325,42 @@ async function createStudioComposite(transparentCarUrl: string, colorProfile: Ca
       const carBottomY = normMaxY * H
 
       // Draw volumetric spotlight cone
-      ctx.save()
-      const lightBeam = ctx.createLinearGradient(carCX, 0, carCX, carBottomY)
-      lightBeam.addColorStop(0, `rgba(${accentRgb}, 0.22)`)
-      lightBeam.addColorStop(0.5, `rgba(${accentRgb}, 0.08)`)
-      lightBeam.addColorStop(1, "rgba(0, 0, 0, 0)")
-      ctx.fillStyle = lightBeam
-      ctx.beginPath()
-      ctx.moveTo(carCX - carW * 0.15, 0)
-      ctx.lineTo(carCX + carW * 0.15, 0)
-      ctx.lineTo(carCX + carW * 0.65, carBottomY)
-      ctx.lineTo(carCX - carW * 0.65, carBottomY)
-      ctx.closePath()
-      ctx.fill()
-      ctx.restore()
+      if (config.showSpotlight) {
+        ctx.save()
+        const lightBeam = ctx.createLinearGradient(carCX, 0, carCX, carBottomY)
+        lightBeam.addColorStop(0, `rgba(${spotlightRgb}, 0.22)`)
+        lightBeam.addColorStop(0.5, `rgba(${spotlightRgb}, 0.08)`)
+        lightBeam.addColorStop(1, "rgba(0, 0, 0, 0)")
+        ctx.fillStyle = lightBeam
+        ctx.beginPath()
+        
+        const wFactor = config.spotlightWidth
+        ctx.moveTo(carCX - carW * 0.15 * wFactor, 0)
+        ctx.lineTo(carCX + carW * 0.15 * wFactor, 0)
+        ctx.lineTo(carCX + carW * 0.65 * wFactor, carBottomY)
+        ctx.lineTo(carCX - carW * 0.65 * wFactor, carBottomY)
+        ctx.closePath()
+        ctx.fill()
+        ctx.restore()
+      }
 
       // 7. Floor Reflection (flipped car)
-      ctx.save()
-      ctx.translate(0, carBottomY)
-      ctx.scale(1, -0.28)
-      ctx.globalAlpha = 0.22
-      ctx.drawImage(img, 0, 0, W, H)
-      ctx.restore()
+      if (config.reflectionOpacity > 0) {
+        ctx.save()
+        ctx.translate(0, carBottomY)
+        ctx.scale(1, -0.28)
+        ctx.globalAlpha = config.reflectionOpacity
+        ctx.drawImage(img, 0, 0, W, H)
+        ctx.restore()
 
-      // Reflection fading overlay
-      const reflectionHeight = carH * 0.3
-      const overlayGrad = ctx.createLinearGradient(0, carBottomY, 0, carBottomY + reflectionHeight)
-      overlayGrad.addColorStop(0, "rgba(6, 6, 8, 0.1)")
-      overlayGrad.addColorStop(1, "rgba(2, 2, 3, 0.98)")
-      ctx.fillStyle = overlayGrad
-      ctx.fillRect(0, carBottomY, W, reflectionHeight + 10)
+        // Reflection fading overlay
+        const reflectionHeight = carH * 0.3
+        const overlayGrad = ctx.createLinearGradient(0, carBottomY, 0, carBottomY + reflectionHeight)
+        overlayGrad.addColorStop(0, "rgba(6, 6, 8, 0.1)")
+        overlayGrad.addColorStop(1, "rgba(2, 2, 3, 0.98)")
+        ctx.fillStyle = overlayGrad
+        ctx.fillRect(0, carBottomY, W, reflectionHeight + 10)
+      }
 
       // 8. Contact Shadows
       // Ambient shadow
@@ -374,6 +411,26 @@ async function createStudioComposite(transparentCarUrl: string, colorProfile: Ca
   })
 }
 
+function makeDefaultConfig(colorProfile: CarColor): ShowroomConfig {
+  return {
+    bg: colorProfile.bg,
+    floorColor: colorProfile.bg,
+    accent: colorProfile.accent,
+    spotlightColor: colorProfile.accent,
+    leftPanelColor: colorProfile.accent,
+    rightPanelColor: colorProfile.accent,
+    gridColor: colorProfile.accent,
+    reflectionOpacity: 0.22,
+    spotlightWidth: 0.65,
+    showNeonStrips: true,
+    showSpotlight: true,
+    showFloorGrid: true,
+    name: colorProfile.name,
+    studioDesc: colorProfile.studioDesc,
+    lighting: colorProfile.lighting
+  }
+}
+
 /* ─────────────────────────────────────────────
    COMPONENT
 ───────────────────────────────────────────── */
@@ -415,6 +472,7 @@ export default function FlowAiPage() {
   const chatInputRef = useRef<HTMLInputElement>(null)
   const [revisionMode, setRevisionMode] = useState(false)
   const [transparentCarUrlState, setTransparentCarUrlState] = useState<string | null>(null)
+  const [showroomConfig, setShowroomConfig] = useState<ShowroomConfig | null>(null)
 
   function now() {
     return new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })
@@ -467,6 +525,7 @@ export default function FlowAiPage() {
   const analyzeImageColor = useCallback((imageUrl: string, forcedProfile?: CarColor) => {
     if (forcedProfile) {
       setDetectedColor(forcedProfile)
+      setShowroomConfig(makeDefaultConfig(forcedProfile))
       setColorSwatchVisible(true)
       return
     }
@@ -483,6 +542,7 @@ export default function FlowAiPage() {
       const { data } = ctx.getImageData(0, 0, W, H)
       const profile = detectDominantCarColor(data, W, H)
       setDetectedColor(profile)
+      setShowroomConfig(makeDefaultConfig(profile))
       setColorSwatchVisible(true)
       setColorAnalyzing(false)
       addAiMsg(`🎨 Renk Analizi Tamamlandı!\n\nAracınızın baskın rengi: **${profile.name}** olarak tespit edildi.\n\nÖnerilen stüdyo kurulumu: ${profile.studioDesc}\n💡 Işık tasarımı: ${profile.lighting}\n\n"Görseli İyileştir" butonuna basarak AI stüdyo dönüşümünü başlatabilirsiniz!`)
@@ -490,6 +550,7 @@ export default function FlowAiPage() {
     img.onerror = () => {
       setColorAnalyzing(false)
       setDetectedColor(COLOR_PROFILES[4])
+      setShowroomConfig(makeDefaultConfig(COLOR_PROFILES[4]))
     }
     img.src = imageUrl
   }, [])
@@ -505,6 +566,7 @@ export default function FlowAiPage() {
       setEnhanceSuccess(false)
       setEnhancedImage(null)
       setDetectedColor(null)
+      setShowroomConfig(null)
       setColorSwatchVisible(false)
       setRevisionMode(false)
       if (transparentCarUrlState) {
@@ -558,7 +620,7 @@ export default function FlowAiPage() {
       setProcessingLabel("Stüdyo ışıkları, ıslak zemin yansımaları ve yumuşak gölgeler render ediliyor...")
 
       // Stüdyo şablonu ile birleştir
-      const compositeBase64 = await createStudioComposite(transparentCarUrl, detectedColor)
+      const compositeBase64 = await createStudioComposite(transparentCarUrl, showroomConfig!)
       setEnhancedImage(compositeBase64)
       setTransparentCarUrlState(transparentCarUrl)
 
@@ -586,7 +648,7 @@ export default function FlowAiPage() {
   }
 
   const processRevision = async (prompt: string): Promise<boolean> => {
-    if (!uploadedImage || !transparentCarUrlState || !detectedColor) return false
+    if (!uploadedImage || !transparentCarUrlState || !detectedColor || !showroomConfig) return false
     
     const text = prompt.toLowerCase()
     
@@ -594,6 +656,8 @@ export default function FlowAiPage() {
     const isVisualPrompt = text.includes("ışık") || text.includes("renk") || text.includes("arka plan") || 
                            text.includes("zemin") || text.includes("neon") || text.includes("yap") || 
                            text.includes("olsun") || text.includes("stüdyo") || text.includes("showroom") ||
+                           text.includes("kapat") || text.includes("aç") || text.includes("yansıma") ||
+                           text.includes("karo") || text.includes("grid") || text.includes("panel") ||
                            revisionMode
                            
     if (!isVisualPrompt) return false
@@ -605,20 +669,40 @@ export default function FlowAiPage() {
     // Gemini için sistem yönlendirmeli prompt
     const systemPrompt = `Kullanıcı mevcut araç fotoğrafının stüdyo arka planını ve ışıklarını özelleştirmek/revize etmek istiyor. 
 Mevcut stüdyo ayarları:
-- Duvar rengi (bg): "${detectedColor.bg}"
-- Işık/Neon vurgu rengi (accent): "${detectedColor.accent}"
-- Stüdyo teması (studioDesc): "${detectedColor.studioDesc}"
-- Işık tasarımı (lighting): "${detectedColor.lighting}"
+- Duvar rengi (bg): "${showroomConfig.bg}"
+- Zemin rengi (floorColor): "${showroomConfig.floorColor}"
+- Neon ışık rengi (accent): "${showroomConfig.accent}"
+- Tepe spotlight rengi (spotlightColor): "${showroomConfig.spotlightColor}"
+- Sol yansıma panel rengi (leftPanelColor): "${showroomConfig.leftPanelColor}"
+- Sağ yansıma panel rengi (rightPanelColor): "${showroomConfig.rightPanelColor}"
+- Zemin karo grid rengi (gridColor): "${showroomConfig.gridColor}"
+- Zemin yansıma oranı (reflectionOpacity): ${showroomConfig.reflectionOpacity} (0.0 ile 0.6 arası)
+- Tepe spotlight genişliği (spotlightWidth): ${showroomConfig.spotlightWidth} (0.0 ile 1.5 arası)
+- Neon şeritler açık mı (showNeonStrips): ${showroomConfig.showNeonStrips} (true/false)
+- Tepe spotlight açık mı (showSpotlight): ${showroomConfig.showSpotlight} (true/false)
+- Zemin karo çizgileri açık mı (showFloorGrid): ${showroomConfig.showFloorGrid} (true/false)
 
 Kullanıcının yeni talebi: "${prompt}"
 
-Lütfen bu talebe göre yeni stüdyo parametrelerini hesapla ve SADECE aşağıdaki JSON formatında yanıt ver. Yanıtında JSON dışında hiçbir açıklama, kod blok işaretçisi (\`\`\`json vb.) veya ek yazı BULUNMAMALIDIR. Sadece saf JSON string dön:
+Lütfen bu talebe göre yeni stüdyo parametrelerini hesapla ve SADECE aşağıdaki JSON formatında yanıt ver. Yanıtında JSON dışında hiçbir açıklama, kod blok işaretçisi (\`\`\`json vb.) veya ek yazı BULUNMAMALIDIR. Sadece saf JSON string dön. Eğer kullanıcı bazı özellikleri değiştirmek istemediyse mevcut değerlerini aynen koru.
+
+JSON Formatı:
 {
-  "bg": "duvar için uygun koyu hex rengi (örn: #050a1a, #0a0a0a, #1a0505)",
-  "accent": "neon şeritler ve ışıklar için parlak hex rengi (örn: #3399ff, #ffffff, #ff6644, #00ff33)",
-  "name": "temaya uygun kısa renk/stil adı (örn: Parlak Kırmızı, Gece Mavisi, Karbon Siyah)",
-  "studioDesc": "oluşturulan yeni stüdyo stilinin adı (örn: Neon Mavi Showroom, Gün Batımı Stüdyosu, Minimalist Siyah)",
-  "lighting": "ışık tasarımının kısa açıklaması (örn: Kırmızı neon aksan şeritleri ve yumuşak tepe softbox)"
+  "bg": "duvar için hex rengi (örn: #050a1a, #0a0a0a, #1a0505)",
+  "floorColor": "zemin için hex rengi (örn: #020203, #050a1a)",
+  "accent": "neon şeritler için parlak hex rengi (örn: #3399ff, #ff6644, #00ff33)",
+  "spotlightColor": "tepe spotlight için parlak hex rengi (örn: #ffffff, #ffff00)",
+  "leftPanelColor": "sol panel yansıması için parlak hex rengi",
+  "rightPanelColor": "sağ panel yansıması için parlak hex rengi",
+  "gridColor": "zemin karo çizgileri için hex rengi",
+  "reflectionOpacity": 0.22,
+  "spotlightWidth": 0.65,
+  "showNeonStrips": true,
+  "showSpotlight": true,
+  "showFloorGrid": true,
+  "name": "temaya uygun kısa renk adı",
+  "studioDesc": "oluşturulan yeni stüdyo stilinin adı",
+  "lighting": "ışık tasarımının kısa açıklaması"
 }`
 
     try {
@@ -656,21 +740,28 @@ Lütfen bu talebe göre yeni stüdyo parametrelerini hesapla ve SADECE aşağıd
       setProcessingStep(60)
       setProcessingLabel("Yeni showroom tasarımı oluşturuluyor...")
 
-      const revisedProfile: CarColor = {
-        name: parsed.name || "Özel Revizyon",
-        nameEn: "custom-revision",
-        hex: parsed.accent,
+      const revisedConfig: ShowroomConfig = {
         bg: parsed.bg,
+        floorColor: parsed.floorColor || parsed.bg,
         accent: parsed.accent,
-        lighting: parsed.lighting || "Özelleştirilmiş ışıklandırma",
+        spotlightColor: parsed.spotlightColor || parsed.accent,
+        leftPanelColor: parsed.leftPanelColor || parsed.accent,
+        rightPanelColor: parsed.rightPanelColor || parsed.accent,
+        gridColor: parsed.gridColor || parsed.accent,
+        reflectionOpacity: typeof parsed.reflectionOpacity === "number" ? parsed.reflectionOpacity : 0.22,
+        spotlightWidth: typeof parsed.spotlightWidth === "number" ? parsed.spotlightWidth : 0.65,
+        showNeonStrips: parsed.showNeonStrips !== undefined ? parsed.showNeonStrips : true,
+        showSpotlight: parsed.showSpotlight !== undefined ? parsed.showSpotlight : true,
+        showFloorGrid: parsed.showFloorGrid !== undefined ? parsed.showFloorGrid : true,
+        name: parsed.name || "Özel Revizyon",
         studioDesc: parsed.studioDesc,
-        cssGradient: `from-gray-900 to-black`
+        lighting: parsed.lighting || "Özelleştirilmiş showroom aydınlatması"
       }
 
       setProcessingStep(85)
-      const compositeBase64 = await createStudioComposite(transparentCarUrlState, revisedProfile)
+      const compositeBase64 = await createStudioComposite(transparentCarUrlState, revisedConfig)
       setEnhancedImage(compositeBase64)
-      setDetectedColor(revisedProfile)
+      setShowroomConfig(revisedConfig)
 
       setProcessingStep(100)
       setProcessing(false)
@@ -683,13 +774,13 @@ Lütfen bu talebe göre yeni stüdyo parametrelerini hesapla ve SADECE aşağıd
         ...prev,
         { id: Date.now() + Math.random(), sender: "user", text: prompt, timestamp: now() }
       ])
-      addAiMsg(`🎨 Görseliniz revize edildi!\n\n• Yeni Stil: **${revisedProfile.studioDesc}**\n• Açıklama: *${revisedProfile.lighting}*\n\nSonucu öncesi/sonrası slider'ı ile inceleyebilirsiniz.`)
+      addAiMsg(`🎨 Görseliniz revize edildi!\n\n• Yeni Stil: **${revisedConfig.studioDesc}**\n• Açıklama: *${revisedConfig.lighting}*\n\nSonucu öncesi/sonrası slider'ı ile inceleyebilirsiniz.`)
       return true
     } catch (err: any) {
       console.error("Revizyon işleme hatası:", err)
       setProcessing(false)
       // Hata durumunda chat'e bilgi ver
-      addAiMsg(`⚠️ Revizyon isteğiniz yorumlanamadı.\n\nİpucu: \"ışıkları mavi yap\", \"arka planı beyaz stüdyo yap\" gibi belirgin direktifler yazabilirsiniz.`)
+      addAiMsg(`⚠️ Revizyon isteğiniz yorumlanamadı.\n\nİpucu: \"ışıkları mavi yap\", \"arka planı beyaz stüdyo yap\", \"neonları kapat\" gibi belirgin direktifler yazabilirsiniz.`)
       return true
     }
   }
@@ -1114,16 +1205,16 @@ Lütfen bu talebe göre yeni stüdyo parametrelerini hesapla ve SADECE aşağıd
                   </div>
                 </div>
 
-                {/* Renk Info */}
-                <div
-                  className={cn("rounded-xl p-3 flex items-center gap-3 border border-white/10", `bg-gradient-to-r ${detectedColor.cssGradient}`)}
-                >
-                  <div className="w-8 h-8 rounded-lg border border-white/20 flex-shrink-0" style={{ backgroundColor: detectedColor.hex }} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-white">{detectedColor.studioDesc}</p>
-                    <p className="text-[10px] text-white/50 truncate">{detectedColor.lighting}</p>
-                  </div>
-                </div>
+                 {/* Renk Info */}
+                 <div
+                   className={cn("rounded-xl p-3 flex items-center gap-3 border border-white/10", `bg-gradient-to-r ${detectedColor.cssGradient}`)}
+                 >
+                   <div className="w-8 h-8 rounded-lg border border-white/20 flex-shrink-0" style={{ backgroundColor: detectedColor.hex }} />
+                   <div className="flex-1 min-w-0">
+                     <p className="text-xs font-bold text-white">{showroomConfig?.studioDesc || detectedColor.studioDesc}</p>
+                     <p className="text-[10px] text-white/50 truncate">{showroomConfig?.lighting || detectedColor.lighting}</p>
+                   </div>
+                 </div>
 
                 {/* Revize Et Butonu */}
                 <button
@@ -1140,6 +1231,7 @@ Lütfen bu talebe göre yeni stüdyo parametrelerini hesapla ve SADECE aşağıd
                       setEnhanceSuccess(false)
                       setUploadedImage(null)
                       setDetectedColor(null)
+                      setShowroomConfig(null)
                       setColorSwatchVisible(false)
                       setRevisionMode(false)
                       if (transparentCarUrlState) {
