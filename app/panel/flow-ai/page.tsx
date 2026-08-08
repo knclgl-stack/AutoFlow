@@ -56,6 +56,7 @@ interface ShowroomConfig {
   lighting: string
   dealerName?: string
   dealerLogoUrl?: string
+  carScale?: number
 }
 
 /* ─────────────────────────────────────────────
@@ -523,10 +524,20 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
       const carCX = (normMinX + normMaxX) / 2 * W
       const carBottomY = normMaxY * H
 
-      // Draw volumetric spotlight cone
+      // 6.5 Dynamic scale & offset calculation to prevent cramped close-ups!
+      const targetScale = config.carScale || 0.70
+      const targetCarW = W * targetScale
+      const scale = targetCarW / carW
+
+      const drawW = W * scale
+      const drawH = H * scale
+      const drawX = W / 2 - carCX * scale
+      const drawY = carBottomY - carBottomY * scale
+
+      // Draw volumetric spotlight cone (aligned with scaled car center)
       if (config.showSpotlight) {
         ctx.save()
-        const lightBeam = ctx.createLinearGradient(carCX, 0, carCX, carBottomY)
+        const lightBeam = ctx.createLinearGradient(W / 2, 0, W / 2, carBottomY)
         lightBeam.addColorStop(0, `rgba(${spotlightRgb}, 0.22)`)
         lightBeam.addColorStop(0.5, `rgba(${spotlightRgb}, 0.08)`)
         lightBeam.addColorStop(1, "rgba(0, 0, 0, 0)")
@@ -534,28 +545,29 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
         ctx.beginPath()
         
         const wFactor = config.spotlightWidth
-        ctx.moveTo(carCX - carW * 0.15 * wFactor, 0)
-        ctx.lineTo(carCX + carW * 0.15 * wFactor, 0)
-        ctx.lineTo(carCX + carW * 0.65 * wFactor, carBottomY)
-        ctx.lineTo(carCX - carW * 0.65 * wFactor, carBottomY)
+        const scaledCarW = carW * scale
+        ctx.moveTo(W / 2 - scaledCarW * 0.15 * wFactor, 0)
+        ctx.lineTo(W / 2 + scaledCarW * 0.15 * wFactor, 0)
+        ctx.lineTo(W / 2 + scaledCarW * 0.65 * wFactor, carBottomY)
+        ctx.lineTo(W / 2 - scaledCarW * 0.65 * wFactor, carBottomY)
         ctx.closePath()
         ctx.fill()
         ctx.restore()
       }
 
-      // 7. Floor Reflection (flipped car) - Soft blurred glossy reflection!
+      // 7. Floor Reflection (flipped car) - Soft blurred glossy reflection! (Aligned with scaled car)
       if (config.reflectionOpacity > 0) {
         ctx.save()
         ctx.translate(0, carBottomY)
         ctx.scale(1, -0.28)
         ctx.globalAlpha = config.reflectionOpacity
         ctx.filter = "blur(4px)" // beautiful glossy floor texture blur
-        ctx.drawImage(img, 0, 0, W, H)
+        ctx.drawImage(img, drawX, drawY, drawW, drawH)
         ctx.restore()
         ctx.filter = "none"
 
         // Reflection fading overlay
-        const reflectionHeight = carH * 0.3
+        const reflectionHeight = carH * scale * 0.3
         const overlayGrad = ctx.createLinearGradient(0, carBottomY, 0, carBottomY + reflectionHeight)
         overlayGrad.addColorStop(0, "rgba(6, 6, 8, 0.1)")
         overlayGrad.addColorStop(1, "rgba(2, 2, 3, 0.98)")
@@ -563,11 +575,11 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
         ctx.fillRect(0, carBottomY, W, reflectionHeight + 10)
       }
 
-      // 8. Contact Shadows
+      // 8. Contact Shadows (Aligned with scaled car center)
       // Ambient shadow
       const ambientShadow = ctx.createRadialGradient(
-        carCX, carBottomY, 0,
-        carCX, carBottomY, carW * 0.54
+        W / 2, carBottomY, 0,
+        W / 2, carBottomY, carW * scale * 0.54
       )
       ambientShadow.addColorStop(0, "rgba(0, 0, 0, 0.75)")
       ambientShadow.addColorStop(0.3, "rgba(0, 0, 0, 0.45)")
@@ -575,29 +587,29 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
       ambientShadow.addColorStop(1, "rgba(0, 0, 0, 0)")
 
       ctx.save()
-      ctx.translate(carCX, carBottomY)
+      ctx.translate(W / 2, carBottomY)
       ctx.scale(1, 0.075)
       ctx.fillStyle = ambientShadow
       ctx.beginPath()
-      ctx.arc(0, 0, carW * 0.54, 0, Math.PI * 2)
+      ctx.arc(0, 0, carW * scale * 0.54, 0, Math.PI * 2)
       ctx.fill()
       ctx.restore()
 
       // Contact shadow
       const tightShadow = ctx.createRadialGradient(
-        carCX, carBottomY, 0,
-        carCX, carBottomY, carW * 0.45
+        W / 2, carBottomY, 0,
+        W / 2, carBottomY, carW * scale * 0.45
       )
       tightShadow.addColorStop(0, "rgba(0, 0, 0, 0.92)")
       tightShadow.addColorStop(0.5, "rgba(0, 0, 0, 0.6)")
       tightShadow.addColorStop(1, "rgba(0, 0, 0, 0)")
 
       ctx.save()
-      ctx.translate(carCX, carBottomY)
+      ctx.translate(W / 2, carBottomY)
       ctx.scale(1, 0.03)
       ctx.fillStyle = tightShadow
       ctx.beginPath()
-      ctx.arc(0, 0, carW * 0.45, 0, Math.PI * 2)
+      ctx.arc(0, 0, carW * scale * 0.45, 0, Math.PI * 2)
       ctx.fill()
       ctx.restore()
 
@@ -606,24 +618,24 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
       ctx.fillStyle = "rgba(0, 0, 0, 0.95)"
       // Left tire contact
       ctx.beginPath()
-      ctx.ellipse(carCX - carW * 0.28, carBottomY, carW * 0.09, carW * 0.015, 0, 0, Math.PI * 2)
+      ctx.ellipse(W / 2 - carW * scale * 0.28, carBottomY, carW * scale * 0.09, carW * scale * 0.015, 0, 0, Math.PI * 2)
       ctx.fill()
       // Right tire contact
       ctx.beginPath()
-      ctx.ellipse(carCX + carW * 0.28, carBottomY, carW * 0.09, carW * 0.015, 0, 0, Math.PI * 2)
+      ctx.ellipse(W / 2 + carW * scale * 0.28, carBottomY, carW * scale * 0.09, carW * scale * 0.015, 0, 0, Math.PI * 2)
       ctx.fill()
       ctx.restore()
 
-      // 9. Draw original car on top
-      ctx.drawImage(img, 0, 0, W, H)
+      // 9. Draw original scaled car on top
+      ctx.drawImage(img, drawX, drawY, drawW, drawH)
 
-      // 10. Optional License Plate Censor
+      // 10. Optional License Plate Censor (Aligned with scaled car center)
       if (config.censorPlate) {
         ctx.save()
-        const plateW = carW * 0.18
+        const plateW = carW * scale * 0.18
         const plateH = plateW * 0.22
-        const plateX = carCX - plateW / 2
-        const plateY = carBottomY - carH * 0.13
+        const plateX = W / 2 - plateW / 2
+        const plateY = carBottomY - carH * scale * 0.13
 
         // Draw plate shadow
         ctx.shadowColor = "rgba(0, 0, 0, 0.4)"
@@ -650,7 +662,7 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
         ctx.roundRect(plateX + 1.5, plateY + 1.5, plateW - 3, plateH - 3, radius)
         ctx.stroke()
 
-        // Write "AUTOFLOW" inside the plate
+        // Write dealer name inside the plate
         ctx.fillStyle = "#ffffff"
         const fontSize = Math.max(7, Math.floor(plateH * 0.55))
         ctx.font = `bold ${fontSize}px sans-serif`
@@ -691,7 +703,8 @@ function makeDefaultConfig(colorProfile: CarColor, dealerName?: string, dealerLo
     studioDesc: "Bayi Stüdyosu",
     lighting: "Yumuşak softbox aydınlatması ve bayi logosu ile profesyonel çekim stüdyosu",
     dealerName: dealerName || "AUTOFLOW",
-    dealerLogoUrl: dealerLogoUrl || undefined
+    dealerLogoUrl: dealerLogoUrl || undefined,
+    carScale: 0.70
   }
 }
 
@@ -957,9 +970,10 @@ Mevcut stüdyo ayarları:
 - Neon şeritler açık mı (showNeonStrips): ${showroomConfig.showNeonStrips} (true/false)
 - Tepe spotlight açık mı (showSpotlight): ${showroomConfig.showSpotlight} (true/false)
 - Zemin karo çizgileri açık mı (showFloorGrid): ${showroomConfig.showFloorGrid} (true/false)
-- Arka plan stili (bgStyle): "${showroomConfig.bgStyle}" ("classic", "garage", "sunset", "minimalist", "scifi")
+- Arka plan stili (bgStyle): "${showroomConfig.bgStyle}" ("classic", "garage", "sunset", "minimalist", "scifi", "dealer")
 - Plakayı sansürleme (censorPlate): ${showroomConfig.censorPlate} (true/false)
 - Işık panel yansımalarının görünürlüğü (lightPanelOpacity): ${showroomConfig.lightPanelOpacity} (0.0 ile 0.5 arası)
+- Arabayı geriye alma/küçültme ölçeği (carScale): ${showroomConfig.carScale || 0.70} (0.4 ile 0.9 arası)
 
 Kullanıcının yeni talebi: "${prompt}"
 
@@ -976,6 +990,9 @@ Tasarım Kılavuzu:
 8. Kullanıcı "siberpunk/scifi stüdyosu olsun" derse: "bgStyle" = "scifi", "accent" = "#ff0077".
 9. Kullanıcı "minimalist stüdyo olsun" derse: "bgStyle" = "minimalist", "showNeonStrips" = false, "showFloorGrid" = false.
 10. Kullanıcı "beton garaj olsun" derse: "bgStyle" = "garage", "bg" = "#1a1a1c", "floorColor" = "#0f0f10".
+11. Kullanıcı "arabayı geriye al", "fotoğrafı geriye al", "arabayı küçült", "uzaklaştır" veya "daha uzaktan çekilmiş gibi yap" derse: "carScale" değerini 0.60 veya 0.55 yap.
+12. Kullanıcı "arabayı yakınlaştır", "arabayı büyüt" derse: "carScale" değerini 0.82 yap.
+13. Kullanıcı "dealer/bayi stüdyosu olsun", "varsayılan yap" derse: "bgStyle" = "dealer".
 
 Yanıtında JSON dışında hiçbir açıklama, kod blok işaretçisi (\`\`\`json vb.) veya ek yazı BULUNMAMALIDIR. Sadece saf JSON string dön. Eğer kullanıcı bazı özellikleri değiştirmek istemediyse mevcut değerlerini aynen koru.
 
@@ -988,17 +1005,18 @@ JSON Formatı:
   "leftPanelColor": "sol panel için hex rengi",
   "rightPanelColor": "sağ panel için hex rengi",
   "gridColor": "karo çizgileri için hex rengi",
-  "reflectionOpacity": 0.22,
+  "reflectionOpacity": 0.16,
   "spotlightWidth": 0.65,
-  "showNeonStrips": true,
-  "showSpotlight": true,
-  "showFloorGrid": true,
-  "bgStyle": "classic",
+  "showNeonStrips": false,
+  "showSpotlight": false,
+  "showFloorGrid": false,
+  "bgStyle": "dealer",
   "censorPlate": false,
-  "lightPanelOpacity": 0.12,
+  "lightPanelOpacity": 0.1,
   "name": "temaya uygun kısa renk adı",
   "studioDesc": "oluşturulan yeni stüdyo stilinin adı",
-  "lighting": "ışık tasarımının kısa açıklaması"
+  "lighting": "ışık tasarımının kısa açıklaması",
+  "carScale": 0.70
 }`
 
     try {
@@ -1044,17 +1062,20 @@ JSON Formatı:
         leftPanelColor: parsed.leftPanelColor || parsed.accent,
         rightPanelColor: parsed.rightPanelColor || parsed.accent,
         gridColor: parsed.gridColor || parsed.accent,
-        reflectionOpacity: typeof parsed.reflectionOpacity === "number" ? parsed.reflectionOpacity : 0.22,
+        reflectionOpacity: typeof parsed.reflectionOpacity === "number" ? parsed.reflectionOpacity : 0.16,
         spotlightWidth: typeof parsed.spotlightWidth === "number" ? parsed.spotlightWidth : 0.65,
-        showNeonStrips: parsed.showNeonStrips !== undefined ? parsed.showNeonStrips : true,
-        showSpotlight: parsed.showSpotlight !== undefined ? parsed.showSpotlight : true,
-        showFloorGrid: parsed.showFloorGrid !== undefined ? parsed.showFloorGrid : true,
-        bgStyle: parsed.bgStyle || "classic",
+        showNeonStrips: parsed.showNeonStrips !== undefined ? parsed.showNeonStrips : false,
+        showSpotlight: parsed.showSpotlight !== undefined ? parsed.showSpotlight : false,
+        showFloorGrid: parsed.showFloorGrid !== undefined ? parsed.showFloorGrid : false,
+        bgStyle: parsed.bgStyle || "dealer",
         censorPlate: parsed.censorPlate !== undefined ? parsed.censorPlate : false,
-        lightPanelOpacity: typeof parsed.lightPanelOpacity === "number" ? parsed.lightPanelOpacity : 0.12,
+        lightPanelOpacity: typeof parsed.lightPanelOpacity === "number" ? parsed.lightPanelOpacity : 0.1,
         name: parsed.name || "Özel Revizyon",
         studioDesc: parsed.studioDesc,
-        lighting: parsed.lighting || "Özelleştirilmiş showroom aydınlatması"
+        lighting: parsed.lighting || "Özelleştirilmiş showroom aydınlatması",
+        dealerName: showroomConfig?.dealerName,
+        dealerLogoUrl: showroomConfig?.dealerLogoUrl,
+        carScale: typeof parsed.carScale === "number" ? parsed.carScale : (showroomConfig?.carScale || 0.70)
       }
 
       setProcessingStep(85)
