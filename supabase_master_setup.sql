@@ -129,7 +129,16 @@ USING (
   OR auth.jwt() ->> 'email' IN ('wwekaannet@gmail.com', 'admin@autoflow.com', 'kaanclgl@gmail.com')
 );
 
--- ── QR OKUTMALARI (qr_events) TABLOSU POLİTİKALARI ──
+-- ── QR OKUTMALARI (qr_events) TABLOSU VE POLİTİKALARI ──
+
+CREATE TABLE IF NOT EXISTS public.qr_events (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  arac_id uuid REFERENCES public.araclar(id) ON DELETE CASCADE,
+  device_type text NOT NULL DEFAULT 'desktop',
+  whatsapp_tiklamasi boolean DEFAULT false,
+  sehir text,
+  timestamp timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
 
 -- RLS'i aktifleştir
 ALTER TABLE public.qr_events ENABLE ROW LEVEL SECURITY;
