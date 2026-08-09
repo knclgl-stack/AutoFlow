@@ -1270,19 +1270,20 @@ Kurallar:
         URL.revokeObjectURL(transparentCarUrlState)
         setTransparentCarUrlState(null)
       }
-      
       const userMsg: Mesaj = {
         id: Date.now() + Math.random(),
         sender: "user",
-        text: `📸 "${file.name}" yüklendi. Stüdyo sentezi başlatılıyor...`,
+        text: `📸 "${file.name}" yüklendi.`,
         imagePreview: src,
         timestamp: now()
       }
       setMesajlar(prev => [...prev, userMsg])
+      addAiMsg("Fotoğraf başarıyla alındı! Şimdi araca uygulamak istediğiniz stüdyo stilini veya arka plan detaylarını yazın (Örn: 'neon sarı stüdyo', 'siyah zeminli beyaz stüdyo') ve gönderin.")
       
+      // Renk analizini ve ön hazırlığı hemen yap (Gemini ve stüdyo birleştirmeyi başlatma!)
       setTimeout(() => {
-        analyzeAndEnhanceImage(src)
-      }, 200)
+        extractColorsAndPrep(src)
+      }, 100)
     }
     reader.readAsDataURL(file)
   }
