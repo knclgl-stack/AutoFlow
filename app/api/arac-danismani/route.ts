@@ -71,7 +71,8 @@ ${(arac.ozellikler || []).length > 0 ? (arac.ozellikler || []).map((o: string) =
 3. Tramer veya hasar durumu sorulduğunda dürüst ve net ol. Gizleme yapma. Aracın durumunu şeffafça açıklamak alıcıda güven uyandırır.
 4. Müşteriyi aracı yakından görmeye, showrooma kahve içmeye davet et veya WhatsApp/Telefon butonlarını kullanarak doğrudan satış temsilcimize bağlanmasını tavsiye et.
 5. Cevaplarını kısa, akıcı ve okunabilir tut. Çok uzun paragraflar yerine listeler ve emojileri ölçülü kullan.
-6. Müşteriye "siz" diye hitap et.`
+6. Müşteriye "siz" diye hitap et.
+7. Müşteri aracın genel kronik sorunları, kullanıcı yorumları, yakıt tüketimi, test sürüşü incelemeleri, modelin teknik kronik zaafları veya araç modelinin tarihçesi/karşılaştırmaları hakkında soru sorduğunda, entegre Google Arama (google_search) aracını kullanarak en doğru, güncel ve tarafsız bilgileri araştırıp profesyonelce yorumla.`
 
     // Gemini API Geçmiş Formatlama (roles: user, model)
     const rawHistory = (history || []).map((m: { sender: string; text: string }) => ({
@@ -103,19 +104,27 @@ ${(arac.ozellikler || []).length > 0 ? (arac.ozellikler || []).map((o: string) =
 
     for (const modelName of modelsToTry) {
       try {
-        const response = await fetch(
+        console.log(`Direct fetch attempt with search grounding for Gemini model: ${modelName}`)
+        
+        // 1. Google Arama Grounding ile dene
+        let response = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${key}`,
           {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
             },
-            signal: AbortSignal.timeout(10000), // 10-second timeout to prevent hangs
+            signal: AbortSignal.timeout(12000), // 12-second timeout to prevent hangs
             body: JSON.stringify({
               contents: contents,
               systemInstruction: {
                 parts: [{ text: SYSTEM_PROMPT }]
               },
+              tools: [
+                {
+                  google_search: {}
+                }
+              ],
               generationConfig: {
                 temperature: 0.7,
                 maxOutputTokens: 800,
@@ -124,7 +133,38 @@ ${(arac.ozellikler || []).length > 0 ? (arac.ozellikler || []).map((o: string) =
           }
         )
 
-        const responseData = await response.json()
+        let responseData = await response.json()
+
+        // API anahtarı veya kota aramayı desteklemiyorsa otomatik olarak arama filtresiz normal sürüme düşür (Fallback)
+        if (!response.ok && (
+          responseData.error?.message?.toLowerCase().includes("tool") || 
+          responseData.error?.message?.toLowerCase().includes("grounding") || 
+          responseData.error?.message?.toLowerCase().includes("quota") ||
+          responseData.error?.code === 403
+        )) {
+          console.warn(`Gemini API search grounding failed, falling back to standard inference...`)
+          response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${key}`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              signal: AbortSignal.timeout(10000),
+              body: JSON.stringify({
+                contents: contents,
+                systemInstruction: {
+                  parts: [{ text: SYSTEM_PROMPT }]
+                },
+                generationConfig: {
+                  temperature: 0.7,
+                  maxOutputTokens: 800,
+                }
+              })
+            }
+          )
+          responseData = await response.json()
+        }
 
         if (!response.ok) {
           throw new Error(responseData.error?.message || `HTTP error ${response.status}`)
