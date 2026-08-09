@@ -567,6 +567,7 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
       let normMinY = foundPixels ? minY / scanH : 0.25
       let normMaxY = foundPixels ? maxY / scanH : 0.75
 
+
       const carW = (normMaxX - normMinX) * W
       const carH = (normMaxY - normMinY) * H
       const carCX = (normMinX + normMaxX) / 2 * W
@@ -580,12 +581,15 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
       const drawW = W * scale
       const drawH = H * scale
       const drawX = W / 2 - carCX * scale
-      const drawY = carBottomY - carBottomY * scale
+      
+      // FIX: Force the bottom of the tires to align with a fixed position on the floor grid (targetTireY)
+      const targetTireY = horizonY + (H - horizonY) * 0.58
+      const drawY = targetTireY - carBottomY * scale
 
       // Draw volumetric spotlight cone (aligned with scaled car center)
       if (config.showSpotlight) {
         ctx.save()
-        const lightBeam = ctx.createLinearGradient(W / 2, 0, W / 2, carBottomY)
+        const lightBeam = ctx.createLinearGradient(W / 2, 0, W / 2, targetTireY)
         lightBeam.addColorStop(0, `rgba(${spotlightRgb}, 0.22)`)
         lightBeam.addColorStop(0.5, `rgba(${spotlightRgb}, 0.08)`)
         lightBeam.addColorStop(1, "rgba(0, 0, 0, 0)")
@@ -596,8 +600,8 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
         const scaledCarW = carW * scale
         ctx.moveTo(W / 2 - scaledCarW * 0.15 * wFactor, 0)
         ctx.lineTo(W / 2 + scaledCarW * 0.15 * wFactor, 0)
-        ctx.lineTo(W / 2 + scaledCarW * 0.65 * wFactor, carBottomY)
-        ctx.lineTo(W / 2 - scaledCarW * 0.65 * wFactor, carBottomY)
+        ctx.lineTo(W / 2 + scaledCarW * 0.65 * wFactor, targetTireY)
+        ctx.lineTo(W / 2 - scaledCarW * 0.65 * wFactor, targetTireY)
         ctx.closePath()
         ctx.fill()
         ctx.restore()
@@ -615,7 +619,7 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
         
         // Draw the flipped car on the temp canvas, aligned perfectly to the bottom of the tires
         refCtx.save()
-        refCtx.translate(0, 0.28 * carBottomY)
+        refCtx.translate(0, 0.28 * targetTireY)
         refCtx.scale(1, -0.28)
         refCtx.drawImage(img, drawX, drawY, drawW, drawH)
         refCtx.restore()
@@ -634,7 +638,7 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
         // Draw the faded reflection onto the main canvas with a beautiful glossy blur
         ctx.save()
         ctx.filter = "blur(6px)"
-        ctx.drawImage(refCanvas, 0, carBottomY)
+        ctx.drawImage(refCanvas, 0, targetTireY)
         ctx.restore()
       }
 
@@ -642,8 +646,8 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
       
       // Layer A: Soft, wide ambient occlusion shadow (simulates blocking general room light)
       const softAmbientShadow = ctx.createRadialGradient(
-        W / 2, carBottomY, 0,
-        W / 2, carBottomY, carW * scale * 0.62
+        W / 2, targetTireY, 0,
+        W / 2, targetTireY, carW * scale * 0.62
       )
       softAmbientShadow.addColorStop(0, "rgba(0, 0, 0, 0.55)")
       softAmbientShadow.addColorStop(0.4, "rgba(0, 0, 0, 0.25)")
@@ -651,7 +655,7 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
       softAmbientShadow.addColorStop(1, "rgba(0, 0, 0, 0)")
 
       ctx.save()
-      ctx.translate(W / 2, carBottomY)
+      ctx.translate(W / 2, targetTireY)
       ctx.scale(1.1, 0.075)
       ctx.fillStyle = softAmbientShadow
       ctx.beginPath()
@@ -661,8 +665,8 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
 
       // Layer B: Main chassis block shadow (darker, flatter shadow directly under the car length)
       const chassisShadow = ctx.createRadialGradient(
-        W / 2, carBottomY, 0,
-        W / 2, carBottomY, carW * scale * 0.48
+        W / 2, targetTireY, 0,
+        W / 2, targetTireY, carW * scale * 0.48
       )
       chassisShadow.addColorStop(0, "rgba(0, 0, 0, 0.85)")
       chassisShadow.addColorStop(0.5, "rgba(0, 0, 0, 0.55)")
@@ -670,7 +674,7 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
       chassisShadow.addColorStop(1, "rgba(0, 0, 0, 0)")
 
       ctx.save()
-      ctx.translate(W / 2, carBottomY)
+      ctx.translate(W / 2, targetTireY)
       ctx.scale(1.22, 0.038) // slightly longer and flatter than ambient
       ctx.fillStyle = chassisShadow
       ctx.beginPath()
@@ -687,8 +691,8 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
       
       wheelXPositions.forEach((wheelX) => {
         const tireShadow = ctx.createRadialGradient(
-          wheelX, carBottomY, 0,
-          wheelX, carBottomY, carW * scale * 0.11
+          wheelX, targetTireY, 0,
+          wheelX, targetTireY, carW * scale * 0.11
         )
         tireShadow.addColorStop(0, "rgba(0, 0, 0, 0.95)")
         tireShadow.addColorStop(0.25, "rgba(0, 0, 0, 0.85)")
@@ -696,7 +700,7 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
         tireShadow.addColorStop(1, "rgba(0, 0, 0, 0)")
 
         ctx.save()
-        ctx.translate(wheelX, carBottomY)
+        ctx.translate(wheelX, targetTireY)
         ctx.scale(1.0, 0.045) // Squashed to match the tire's ground contact patch
         ctx.fillStyle = tireShadow
         ctx.beginPath()
