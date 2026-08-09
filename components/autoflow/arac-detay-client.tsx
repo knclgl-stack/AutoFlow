@@ -248,6 +248,93 @@ export function AracDetayClient({ arac, galeri }: AracDetayClientProps) {
             </div>
           </div>
 
+          {/* FLOW AI INLINE CHATBOX */}
+          {arac.durum !== "Satildi" && (
+            <div className="mt-5 bg-af-surface border border-af-border rounded-2xl overflow-hidden flex flex-col shadow-lg shadow-black/10">
+              {/* Header */}
+              <div className="bg-gradient-to-r from-af-accent/20 to-purple-600/10 px-4.5 py-3 border-b border-af-border flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-af-accent to-purple-600 flex items-center justify-center text-white">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-white text-xs leading-none">Flow AI Danışmanı</h4>
+                    <p className="text-[10px] text-af-text-secondary mt-1">{galeri.ad || 'AutoFlow'} Satış Danışmanı</p>
+                  </div>
+                </div>
+                <span className="flex items-center gap-1 text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 rounded-full">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Aktif
+                </span>
+              </div>
+
+              {/* Chat Messages Area */}
+              <div className="h-[250px] overflow-y-auto p-4 space-y-3.5 scrollbar-thin">
+                {chatMessages.map((msg, i) => (
+                  <div
+                    key={i}
+                    className={cn(
+                      "flex flex-col max-w-[85%] rounded-xl p-3 text-xs leading-relaxed whitespace-pre-line shadow-sm",
+                      msg.sender === "user"
+                        ? "bg-af-accent text-white ml-auto rounded-tr-none"
+                        : "bg-af-surface-2 border border-af-border text-af-text mr-auto rounded-tl-none"
+                    )}
+                  >
+                    {msg.text}
+                  </div>
+                ))}
+                {chatLoading && (
+                  <div className="bg-af-surface-2 border border-af-border text-af-text mr-auto rounded-xl rounded-tl-none p-3 max-w-[80%] flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 bg-af-text-disabled rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                    <span className="h-1.5 w-1.5 bg-af-text-disabled rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                    <span className="h-1.5 w-1.5 bg-af-text-disabled rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                  </div>
+                )}
+              </div>
+
+              {/* Quick Suggestion Chips */}
+              <div className="px-4 py-2 bg-af-surface-2 border-t border-af-border overflow-x-auto flex gap-2 whitespace-nowrap scrollbar-none" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                {[
+                  "Fiyatta pazarlık var mı?",
+                  "Tramer / hasar durumu nedir?",
+                  "Aracın boyalı kısımları neresi?",
+                  "Araçta hangi özellikler var?"
+                ].map((q) => (
+                  <button
+                    key={q}
+                    onClick={() => handleSendChatMessage(q)}
+                    disabled={chatLoading}
+                    className="inline-block text-[10px] font-semibold text-af-text-secondary bg-af-surface hover:text-white hover:border-af-accent/40 border border-af-border px-3 py-1.5 rounded-full transition-colors disabled:opacity-50"
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
+
+              {/* Input Footer */}
+              <div className="p-3 bg-af-surface border-t border-af-border flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Araç hakkında aklınıza takılanı sorun..."
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSendChatMessage()
+                  }}
+                  disabled={chatLoading}
+                  className="flex-1 bg-af-surface-2 border border-af-border rounded-lg px-3.5 py-2 text-xs text-af-text placeholder-af-text-disabled focus:outline-none focus:border-af-accent/50 disabled:opacity-50"
+                />
+                <button
+                  onClick={() => handleSendChatMessage()}
+                  disabled={chatLoading || !chatInput.trim()}
+                  className="w-8.5 h-8.5 min-w-[34px] min-h-[34px] bg-af-accent text-white rounded-lg flex items-center justify-center hover:bg-af-accent-hover active:scale-95 transition-all disabled:opacity-50 disabled:scale-100"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* HIZLI SPEC CHİP'LERİ */}
           <div className="mt-5 grid grid-cols-2 gap-2.5">
             {[
@@ -406,120 +493,7 @@ export function AracDetayClient({ arac, galeri }: AracDetayClientProps) {
 
       {arac.durum !== "Satildi" && <IletisimButonlari arac={arac} galeri={galeri} variant="sticky" eventId={eventId} />}
 
-      {/* FLOW AI WIDGET */}
-      {arac.durum !== "Satildi" && (
-        <>
-          {/* Floating Bubble Button */}
-          {!chatOpen && (
-            <button
-              onClick={() => setChatOpen(true)}
-              className="fixed bottom-24 right-5 w-14 h-14 bg-gradient-to-tr from-af-accent to-purple-600 rounded-full flex items-center justify-center shadow-lg shadow-af-accent/30 text-white hover:scale-105 active:scale-95 transition-all z-40 border border-white/10"
-              title="Flow AI Satış Danışmanı"
-            >
-              <Sparkles className="w-6 h-6 animate-pulse" />
-              <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-              </span>
-            </button>
-          )}
 
-          {/* Chat Window Panel */}
-          {chatOpen && (
-            <div className="fixed bottom-20 right-4 left-4 md:left-auto md:w-96 h-[500px] bg-af-surface/95 backdrop-blur-md border border-af-border rounded-3xl shadow-2xl z-50 flex flex-col overflow-hidden transition-all duration-300 animate-in slide-in-from-bottom-5 fade-in">
-              {/* Header */}
-              <div className="bg-gradient-to-r from-af-accent/20 to-purple-600/10 px-4 py-3.5 border-b border-af-border flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-af-accent to-purple-600 flex items-center justify-center text-white">
-                    <Sparkles className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-white text-sm">Flow AI</h4>
-                    <p className="text-[10px] text-af-text-secondary leading-none">{galeri.ad} Satış Danışmanı</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="flex items-center gap-1 text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    Aktif
-                  </span>
-                  <button
-                    onClick={() => setChatOpen(false)}
-                    className="p-1.5 rounded-xl hover:bg-af-surface-2 text-af-text-disabled hover:text-white transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Chat Messages Area */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin">
-                {chatMessages.map((msg, i) => (
-                  <div
-                    key={i}
-                    className={cn(
-                      "flex flex-col max-w-[82%] rounded-2xl p-3 text-sm leading-relaxed whitespace-pre-line shadow-sm",
-                      msg.sender === "user"
-                        ? "bg-af-accent text-white ml-auto rounded-tr-none"
-                        : "bg-af-surface-2 border border-af-border text-af-text mr-auto rounded-tl-none"
-                    )}
-                  >
-                    {msg.text}
-                  </div>
-                ))}
-                {chatLoading && (
-                  <div className="bg-af-surface-2 border border-af-border text-af-text mr-auto rounded-2xl rounded-tl-none p-3 max-w-[80%] flex items-center gap-1">
-                    <span className="h-2 w-2 bg-af-text-disabled rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                    <span className="h-2 w-2 bg-af-text-disabled rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                    <span className="h-2 w-2 bg-af-text-disabled rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
-                  </div>
-                )}
-              </div>
-
-              {/* Quick Suggestion Chips */}
-              <div className="px-4 py-2 bg-af-surface-2 border-t border-af-border overflow-x-auto flex gap-2 whitespace-nowrap scrollbar-none" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                {[
-                  "Fiyatta pazarlık var mı?",
-                  "Tramer / hasar durumu nedir?",
-                  "Aracın boyalı kısımları neresi?",
-                  "Araçta hangi özellikler var?"
-                ].map((q) => (
-                  <button
-                    key={q}
-                    onClick={() => handleSendChatMessage(q)}
-                    disabled={chatLoading}
-                    className="inline-block text-xs font-semibold text-af-text-secondary bg-af-surface hover:text-white hover:border-af-accent/40 border border-af-border px-3 py-1.5 rounded-full transition-colors disabled:opacity-50"
-                  >
-                    {q}
-                  </button>
-                ))}
-              </div>
-
-              {/* Input Footer */}
-              <div className="p-3 bg-af-surface border-t border-af-border flex items-center gap-2">
-                <input
-                  type="text"
-                  placeholder="Araç hakkında soru sorun..."
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleSendChatMessage()
-                  }}
-                  disabled={chatLoading}
-                  className="flex-1 bg-af-surface-2 border border-af-border rounded-xl px-3.5 py-2 text-sm text-af-text placeholder-af-text-disabled focus:outline-none focus:border-af-accent/50 disabled:opacity-50"
-                />
-                <button
-                  onClick={() => handleSendChatMessage()}
-                  disabled={chatLoading || !chatInput.trim()}
-                  className="w-9 h-9 bg-af-accent text-white rounded-xl flex items-center justify-center hover:bg-af-accent-hover active:scale-95 transition-all disabled:opacity-50 disabled:scale-100"
-                >
-                  <Send className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          )}
-        </>
-      )}
     </div>
   )
 }
