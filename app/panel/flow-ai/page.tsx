@@ -963,8 +963,6 @@ export default function FlowAiPage() {
   const [isTyping, setIsTyping] = useState(false)
   const [userApiKey, setUserApiKey] = useState("")
   const [showApiKeyInput, setShowApiKeyInput] = useState(false)
-
-  /* --- Processing State --- */
   const [processing, setProcessing] = useState(false)
   const [processingStep, setProcessingStep] = useState(0)
   const [processingLabel, setProcessingLabel] = useState("")
@@ -981,8 +979,6 @@ export default function FlowAiPage() {
   const [revisionMode, setRevisionMode] = useState(false)
   const [transparentCarUrlState, setTransparentCarUrlState] = useState<string | null>(null)
   const [showroomConfig, setShowroomConfig] = useState<ShowroomConfig | null>(null)
-
-
 
   function now() {
     return new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })
@@ -1023,7 +1019,7 @@ export default function FlowAiPage() {
       {
         id: 1,
         sender: "ai",
-        text: `Merhaba! Ben Flow AI. 🎨\n\n${planText}\n\nAraç fotoğrafınızı analiz edip rengine özel stüdyo ortamı seçebiliyorum. Başlamak için bir araç fotoğrafı yükleyin!`,
+        text: `Merhaba! Ben Flow AI. 🎨\n\n${planText}\n\nAraç fotoğrafınızı stüdyoya yerleştirmek için önce fotoğrafı yükleyin, ardından istediğiniz stüdyo tarzını bana yazın!`,
         timestamp: now()
       }
     ])
@@ -1033,9 +1029,8 @@ export default function FlowAiPage() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [mesajlar])
 
-  /* ── Gerçek Renk Algılama ── */
   /* ── Otomatik Renk Algılama & Stüdyo Sentezi ── */
-  const analyzeAndEnhanceImage = async (imageUrl: string) => {
+  const analyzeAndEnhanceImage = async (imageUrl: string, userPrompt?: string) => {
     if (dbPlan === "Essential") {
       addAiMsg("⚠️ Essentials planındasınız. Akıllı Stüdyo özelliklerini kullanabilmek için lütfen Professional veya Elite plana geçin.")
       return
@@ -1103,14 +1098,14 @@ Aracın rengini ve kameraya göre çekiş açısını (örneğin: ön-çapraz 3/
 Bu analizine dayanarak, araba için en iyi aydınlatma, zemin yansıması, tepe spotlight'ı ve duvar rengi ayarlarını hesapla.
 
 Kurallar:
-1. ARKA PLAN RENGİ (bg): Aracın rengiyle doğrudan çakışmamalı, onunla şık bir kontrast oluşturmalı veya tamamlayıcı olmalıdır (Örn: beyaz araç için altın vurgulu bej veya antrasit stüdyo; siyah araç için kenar ışıklı koyu gri/siyah stüdyo; kırmızı araç için sıcak tonlar veya sahil gün batımı; mavi araç için soğuk neon tonları).
+1. ARKA PLAN RENGİ (bg): Aracın rengiyle doğrudan çakışmamalı, onunla şık bir kontrast oluşturmalı veya tamamlayıcı olmalıdır.
 2. IŞIK AÇILARI VE REFEKSİYONLAR:
    - Araç ön-çapraz 3/4 veya düz ön ise tepe spotlight'ını geniş tut (spotlightWidth: 0.95), zemin yansımasını (reflectionOpacity) 0.20-0.25 arası yap.
    - Araç tam yan profil ise zemin yansımasını daha ayna gibi yap (reflectionOpacity: 0.35), neon şeritleri açarak araca derinlik kat (showNeonStrips: true).
-   - Çekim açısını düşünerek ışık panellerini (leftPanelColor, rightPanelColor) ve bunların yansıma yoğunluğunu (lightPanelOpacity) ayarla.
 3. GÖLGELER VE FİZİKSEL UYUMLULUK:
-   - Işığın geliş yönünü düşünerek gölge opaklığını (shadowOpacity: 0.4 ile 0.9 arası), gölge dikey kaymasını (shadowOffsetY: -8 ile 12 arası piksel) ve gölge yatay genişliğini (shadowScaleX: 0.8 ile 1.3 arası) hassas şekilde ayarla. Bu sayede gölgelerin araba tekerlekleriyle kusursuz birleşmesini sağla.
-4. Çıktı sadece aşağıdaki JSON formatında olmalı, başka hiçbir açıklama veya markdown bloğu içermemelidir:
+   - Işığın geliş yönünü düşünerek gölge opaklığını (shadowOpacity: 0.4 ile 0.9 arası), gölge dikey kaymasını (shadowOffsetY: -8 ile 12 arası piksel) ve gölge yatay genişliğini (shadowScaleX: 0.8 ile 1.3 arası) hassas şekilde ayarla.
+4. Çıktı sadece JSON formatında olmalı.
+
 {
   "bg": "duvar rengi hex kodu",
   "floorColor": "zemin rengi hex kodu",
@@ -1128,7 +1123,7 @@ Kurallar:
   "lightPanelOpacity": 0.15,
   "name": "temaya uygun kısa renk adı",
   "studioDesc": "oluşturulan yeni stüdyo stilinin adı",
-  "lighting": "aracın rengine ve açısına göre yapılmış özel ışık tasarımı açıklaması (örn: 'Mercedes-Benz ön-çapraz açısına uygun yumuşak softbox')",
+  "lighting": "ışık tasarım açıklaması",
   "carScale": 0.70,
   "shadowOpacity": 0.60,
   "shadowOffsetY": 0,
@@ -1207,13 +1202,12 @@ Kurallar:
         setEnhanceSuccess(true)
         setRevisionMode(true)
 
-        // Mesaj listesine stüdyolu görseli ve indirme linkini ekle
         setMesajlar(prev => [
           ...prev,
           {
             id: Date.now() + Math.random(),
             sender: "ai",
-            text: `✅ Araç stüdyoya başarıyla yerleştirildi!\n\n• Stil: **${finalConfig.studioDesc}**\n• Işık Konsepti: *${finalConfig.lighting}*\n\nGörseli aşağıdaki butonla indirebilir veya değiştirmek istediğiniz detayları bana yazabilirsiniz! (Örn: 'ışıkları neon kırmızı yap')`,
+            text: `✅ Araç stüdyoya başarıyla yerleştirildi!\n\n• Stil: **${finalConfig.studioDesc}**\n• Işık Konsepti: *${finalConfig.lighting}*\n\nGörseli aşağıdaki butonla indirebilir veya değiştirmek istediğiniz detayları bana yazabilirsiniz!`,
             imagePreview: compositeBase64,
             timestamp: now()
           }
@@ -1224,6 +1218,35 @@ Kurallar:
         setProcessing(false)
         addAiMsg(`⚠️ Görsel işlenirken bir hata oluştu: ${err.message || err}`)
       }
+    }
+    img.src = imageUrl
+  }
+
+  /* ── Ön Analiz & Renk Hazırlığı ── */
+  const extractColorsAndPrep = (imageUrl: string) => {
+    setColorAnalyzing(true)
+    const img = new Image()
+    img.crossOrigin = "anonymous"
+    img.onload = () => {
+      const canvas = canvasRef.current!
+      const W = Math.min(img.width, 400), H = Math.min(img.height, 400)
+      canvas.width = W; canvas.height = H
+      const ctx = canvas.getContext("2d")!
+      ctx.drawImage(img, 0, 0, W, H)
+      const { data } = ctx.getImageData(0, 0, W, H)
+      const profile = detectDominantCarColor(data, W, H)
+      setDetectedColor(profile)
+      
+      const defaultConfig = makeDefaultConfig(profile, dealerName, dealerLogoUrl || undefined)
+      setShowroomConfig(defaultConfig)
+      
+      try {
+        const downsized = canvas.toDataURL("image/png")
+        setDownsizedImageBase64(downsized)
+      } catch (err) {
+        console.warn("Could not capture downsized base64:", err)
+      }
+      setColorAnalyzing(false)
     }
     img.src = imageUrl
   }
@@ -1438,9 +1461,15 @@ JSON Formatı:
       // Mesajları ekle
       setMesajlar(prev => [
         ...prev,
-        { id: Date.now() + Math.random(), sender: "user", text: prompt, timestamp: now() }
+        { id: Date.now() + Math.random(), sender: "user", text: prompt, timestamp: now() },
+        {
+          id: Date.now() + Math.random(),
+          sender: "ai",
+          text: `🎨 İstediğiniz değişiklikleri uyguladım!\n\n• Stil: **${revisedConfig.studioDesc}**\n• Açıklama: *${revisedConfig.lighting}*\n\nGörseli aşağıdaki butonla indirebilir veya yeni değişiklikler yazabilirsiniz!`,
+          imagePreview: compositeBase64,
+          timestamp: now()
+        }
       ])
-      addAiMsg(`🎨 Görseliniz revize edildi!\n\n• Yeni Stil: **${revisedConfig.studioDesc}**\n• Açıklama: *${revisedConfig.lighting}*\n\nSonucu öncesi/sonrası slider'ı ile inceleyebilirsiniz.`)
       return true
     } catch (err: any) {
       console.error("Revizyon işleme hatası:", err)
@@ -1457,6 +1486,15 @@ JSON Formatı:
     
     if (dbPlan === "Essential") {
       alert("Flow AI Asistanı özelliğini kullanabilmek için lütfen Professional veya Elite plana geçiş yapın.")
+      return
+    }
+
+    // 1. Orijinal fotoğraf yüklenmiş ama stüdyo henüz oluşturulmamışsa (ilk istek)
+    if (uploadedImage && !enhanceSuccess) {
+      const userMsg: Mesaj = { id: Date.now() + Math.random(), sender: "user", text, timestamp: now() }
+      setMesajlar(prev => [...prev, userMsg])
+      setInputText("")
+      await analyzeAndEnhanceImage(uploadedImage, text)
       return
     }
 
