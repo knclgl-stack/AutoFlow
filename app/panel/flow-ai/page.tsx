@@ -567,7 +567,6 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
       let normMinY = foundPixels ? minY / scanH : 0.25
       let normMaxY = foundPixels ? maxY / scanH : 0.75
 
-
       const carW = (normMaxX - normMinX) * W
       const carH = (normMaxY - normMinY) * H
       const carCX = (normMinX + normMaxX) / 2 * W
@@ -583,8 +582,37 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
       const drawX = W / 2 - carCX * scale
       
       // FIX: Force the bottom of the tires to align with a fixed position on the floor grid (targetTireY)
-      const targetTireY = horizonY + (H - horizonY) * 0.58
+      // Moving it slightly lower (0.65 instead of 0.58) gives more floor space behind the car.
+      const targetTireY = horizonY + (H - horizonY) * 0.65
       const drawY = targetTireY - carBottomY * scale
+      const carWidthReal = (normMaxX - normMinX) * drawW
+
+      // A. Soft cyclorama gradient to blur the horizon line and blend wall into floor (creates 3D curve depth)
+      ctx.save()
+      const cycGrad = ctx.createLinearGradient(0, horizonY - H * 0.08, 0, horizonY + H * 0.08)
+      cycGrad.addColorStop(0, "rgba(0, 0, 0, 0)")
+      cycGrad.addColorStop(0.5, "rgba(0, 0, 0, 0.06)")
+      cycGrad.addColorStop(1, "rgba(0, 0, 0, 0)")
+      ctx.fillStyle = cycGrad
+      ctx.fillRect(0, horizonY - H * 0.08, W, H * 0.16)
+      ctx.restore()
+
+      // B. Soft background wall occlusion shadow (grounds the car relative to the wall, removing the floating/touching wall effect)
+      ctx.save()
+      ctx.filter = "blur(35px)"
+      ctx.fillStyle = "rgba(0, 0, 0, 0.22)"
+      ctx.beginPath()
+      ctx.ellipse(
+        W / 2,
+        horizonY - H * 0.02, // slightly above horizon
+        carWidthReal * 0.52, // wide enough to cover car
+        H * 0.10,            // vertical shadow spread on the wall
+        0,
+        0,
+        Math.PI * 2
+      )
+      ctx.fill()
+      ctx.restore()
 
       // Draw volumetric spotlight cone (aligned with scaled car center)
       if (config.showSpotlight) {
@@ -646,27 +674,27 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
       
       // Layer A: Soft, wide ambient occlusion shadow (simulates blocking general room light)
       const softAmbientShadow = ctx.createRadialGradient(
-        W / 2, targetTireY, 0,
-        W / 2, targetTireY, carW * scale * 0.62
+        W / 2, targetTireY - 2, 0,
+        W / 2, targetTireY - 2, carWidthReal * 0.58
       )
-      softAmbientShadow.addColorStop(0, "rgba(0, 0, 0, 0.55)")
-      softAmbientShadow.addColorStop(0.4, "rgba(0, 0, 0, 0.25)")
+      softAmbientShadow.addColorStop(0, "rgba(0, 0, 0, 0.60)")
+      softAmbientShadow.addColorStop(0.4, "rgba(0, 0, 0, 0.30)")
       softAmbientShadow.addColorStop(0.8, "rgba(0, 0, 0, 0.08)")
       softAmbientShadow.addColorStop(1, "rgba(0, 0, 0, 0)")
 
       ctx.save()
       ctx.translate(W / 2, targetTireY)
-      ctx.scale(1.1, 0.075)
+      ctx.scale(1.15, 0.075)
       ctx.fillStyle = softAmbientShadow
       ctx.beginPath()
-      ctx.arc(0, 0, carW * scale * 0.62, 0, Math.PI * 2)
+      ctx.arc(0, 0, carWidthReal * 0.58, 0, Math.PI * 2)
       ctx.fill()
       ctx.restore()
 
       // Layer B: Main chassis block shadow (darker, flatter shadow directly under the car length)
       const chassisShadow = ctx.createRadialGradient(
         W / 2, targetTireY, 0,
-        W / 2, targetTireY, carW * scale * 0.48
+        W / 2, targetTireY, carWidthReal * 0.46
       )
       chassisShadow.addColorStop(0, "rgba(0, 0, 0, 0.85)")
       chassisShadow.addColorStop(0.5, "rgba(0, 0, 0, 0.55)")
@@ -678,21 +706,21 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
       ctx.scale(1.22, 0.038) // slightly longer and flatter than ambient
       ctx.fillStyle = chassisShadow
       ctx.beginPath()
-      ctx.arc(0, 0, carW * scale * 0.48, 0, Math.PI * 2)
+      ctx.arc(0, 0, carWidthReal * 0.46, 0, Math.PI * 2)
       ctx.fill()
       ctx.restore()
 
       // Layer C: Tire Footprint Contact Shadows (very dark, small ellipses directly under the tires)
       // Most cars have wheels located at ~26% from left and right edges of the car body.
       const wheelXPositions = [
-        W / 2 - carW * scale * 0.26, // Left wheel region
-        W / 2 + carW * scale * 0.26  // Right wheel region
+        W / 2 - carWidthReal * 0.28, // Left wheel region
+        W / 2 + carWidthReal * 0.28  // Right wheel region
       ]
       
       wheelXPositions.forEach((wheelX) => {
         const tireShadow = ctx.createRadialGradient(
           wheelX, targetTireY, 0,
-          wheelX, targetTireY, carW * scale * 0.11
+          wheelX, targetTireY, carWidthReal * 0.10
         )
         tireShadow.addColorStop(0, "rgba(0, 0, 0, 0.95)")
         tireShadow.addColorStop(0.25, "rgba(0, 0, 0, 0.85)")
@@ -704,7 +732,7 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
         ctx.scale(1.0, 0.045) // Squashed to match the tire's ground contact patch
         ctx.fillStyle = tireShadow
         ctx.beginPath()
-        ctx.arc(0, 0, carW * scale * 0.11, 0, Math.PI * 2)
+        ctx.arc(0, 0, carWidthReal * 0.10, 0, Math.PI * 2)
         ctx.fill()
         ctx.restore()
       })
