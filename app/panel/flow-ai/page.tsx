@@ -61,6 +61,7 @@ interface ShowroomConfig {
   plateYPercent?: number
   plateWPercent?: number
   plateHPercent?: number
+  carColorEn?: string
 }
 
 /* ─────────────────────────────────────────────
@@ -604,68 +605,110 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
 
       // 7. Floor Reflection (flipped car) - Soft blurred glossy reflection! (Aligned with scaled car)
       if (config.reflectionOpacity > 0) {
+        const reflectionHeight = carH * scale * 0.35
+        
+        // Create a temporary canvas for the reflection to apply a gradient mask
+        const refCanvas = document.createElement("canvas")
+        refCanvas.width = W
+        refCanvas.height = reflectionHeight
+        const refCtx = refCanvas.getContext("2d")!
+        
+        // Draw the flipped car on the temp canvas, aligned perfectly to the bottom of the tires
+        refCtx.save()
+        refCtx.translate(0, 0.28 * carBottomY)
+        refCtx.scale(1, -0.28)
+        refCtx.drawImage(img, drawX, drawY, drawW, drawH)
+        refCtx.restore()
+        
+        // Apply gradient mask to fade the reflection naturally to transparent (no solid overlay block!)
+        refCtx.save()
+        refCtx.globalCompositeOperation = "destination-in"
+        const maskGrad = refCtx.createLinearGradient(0, 0, 0, reflectionHeight)
+        maskGrad.addColorStop(0, `rgba(0, 0, 0, ${config.reflectionOpacity * 1.5})`)
+        maskGrad.addColorStop(0.3, `rgba(0, 0, 0, ${config.reflectionOpacity * 0.8})`)
+        maskGrad.addColorStop(1, "rgba(0, 0, 0, 0)")
+        refCtx.fillStyle = maskGrad
+        refCtx.fillRect(0, 0, W, reflectionHeight)
+        refCtx.restore()
+        
+        // Draw the faded reflection onto the main canvas with a beautiful glossy blur
         ctx.save()
-        ctx.translate(0, carBottomY)
-        ctx.scale(1, -0.28)
-        ctx.globalAlpha = config.reflectionOpacity
-        ctx.filter = "blur(4px)" // beautiful glossy floor texture blur
-        ctx.drawImage(img, drawX, drawY, drawW, drawH)
+        ctx.filter = "blur(6px)"
+        ctx.drawImage(refCanvas, 0, carBottomY)
         ctx.restore()
-        ctx.filter = "none"
-
-        // Reflection fading overlay
-        const reflectionHeight = carH * scale * 0.3
-        const overlayGrad = ctx.createLinearGradient(0, carBottomY, 0, carBottomY + reflectionHeight)
-        overlayGrad.addColorStop(0, "rgba(6, 6, 8, 0.1)")
-        overlayGrad.addColorStop(1, "rgba(2, 2, 3, 0.98)")
-        ctx.fillStyle = overlayGrad
-        ctx.fillRect(0, carBottomY, W, reflectionHeight + 10)
       }
 
-      // 8. Contact Shadows (Aligned with scaled car center)
-      // Ambient shadow
-      const ambientShadow = ctx.createRadialGradient(
+      // 8. Multi-Layer Contact Shadows (Grounds the tires and chassis realistically)
+      
+      // Layer A: Soft, wide ambient occlusion shadow (simulates blocking general room light)
+      const softAmbientShadow = ctx.createRadialGradient(
         W / 2, carBottomY, 0,
-        W / 2, carBottomY, carW * scale * 0.54
+        W / 2, carBottomY, carW * scale * 0.62
       )
-      ambientShadow.addColorStop(0, "rgba(0, 0, 0, 0.75)")
-      ambientShadow.addColorStop(0.3, "rgba(0, 0, 0, 0.45)")
-      ambientShadow.addColorStop(0.7, "rgba(0, 0, 0, 0.15)")
-      ambientShadow.addColorStop(1, "rgba(0, 0, 0, 0)")
+      softAmbientShadow.addColorStop(0, "rgba(0, 0, 0, 0.55)")
+      softAmbientShadow.addColorStop(0.4, "rgba(0, 0, 0, 0.25)")
+      softAmbientShadow.addColorStop(0.8, "rgba(0, 0, 0, 0.08)")
+      softAmbientShadow.addColorStop(1, "rgba(0, 0, 0, 0)")
 
       ctx.save()
       ctx.translate(W / 2, carBottomY)
-      ctx.scale(1, 0.075)
-      ctx.fillStyle = ambientShadow
+      ctx.scale(1.1, 0.075)
+      ctx.fillStyle = softAmbientShadow
       ctx.beginPath()
-      ctx.arc(0, 0, carW * scale * 0.54, 0, Math.PI * 2)
+      ctx.arc(0, 0, carW * scale * 0.62, 0, Math.PI * 2)
       ctx.fill()
       ctx.restore()
 
-      // Contact shadow
-      const tightShadow = ctx.createRadialGradient(
+      // Layer B: Main chassis block shadow (darker, flatter shadow directly under the car length)
+      const chassisShadow = ctx.createRadialGradient(
         W / 2, carBottomY, 0,
-        W / 2, carBottomY, carW * scale * 0.45
+        W / 2, carBottomY, carW * scale * 0.48
       )
-      tightShadow.addColorStop(0, "rgba(0, 0, 0, 0.92)")
-      tightShadow.addColorStop(0.5, "rgba(0, 0, 0, 0.6)")
-      tightShadow.addColorStop(1, "rgba(0, 0, 0, 0)")
+      chassisShadow.addColorStop(0, "rgba(0, 0, 0, 0.85)")
+      chassisShadow.addColorStop(0.5, "rgba(0, 0, 0, 0.55)")
+      chassisShadow.addColorStop(0.8, "rgba(0, 0, 0, 0.15)")
+      chassisShadow.addColorStop(1, "rgba(0, 0, 0, 0)")
 
       ctx.save()
       ctx.translate(W / 2, carBottomY)
-      ctx.scale(1, 0.03)
-      ctx.fillStyle = tightShadow
+      ctx.scale(1.22, 0.038) // slightly longer and flatter than ambient
+      ctx.fillStyle = chassisShadow
       ctx.beginPath()
-      ctx.arc(0, 0, carW * scale * 0.45, 0, Math.PI * 2)
+      ctx.arc(0, 0, carW * scale * 0.48, 0, Math.PI * 2)
       ctx.fill()
       ctx.restore()
 
-      // Unified ambient shadows ground the car naturally at all angles without hardcoded stamps.
+      // Layer C: Tire Footprint Contact Shadows (very dark, small ellipses directly under the tires)
+      // Most cars have wheels located at ~26% from left and right edges of the car body.
+      const wheelXPositions = [
+        W / 2 - carW * scale * 0.26, // Left wheel region
+        W / 2 + carW * scale * 0.26  // Right wheel region
+      ]
+      
+      wheelXPositions.forEach((wheelX) => {
+        const tireShadow = ctx.createRadialGradient(
+          wheelX, carBottomY, 0,
+          wheelX, carBottomY, carW * scale * 0.11
+        )
+        tireShadow.addColorStop(0, "rgba(0, 0, 0, 0.95)")
+        tireShadow.addColorStop(0.25, "rgba(0, 0, 0, 0.85)")
+        tireShadow.addColorStop(0.6, "rgba(0, 0, 0, 0.4)")
+        tireShadow.addColorStop(1, "rgba(0, 0, 0, 0)")
 
-      // 8.5 Light Wrap / Edge Softener (subtle blurred backing to blend cutout borders)
+        ctx.save()
+        ctx.translate(wheelX, carBottomY)
+        ctx.scale(1.0, 0.045) // Squashed to match the tire's ground contact patch
+        ctx.fillStyle = tireShadow
+        ctx.beginPath()
+        ctx.arc(0, 0, carW * scale * 0.11, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.restore()
+      })
+
+      // 8.5 Subtle Edge Softener / Anti-Aliasing (reduces pixelated background-removal artifacts)
       ctx.save()
-      ctx.filter = "blur(3px)"
-      ctx.globalAlpha = 0.22
+      ctx.filter = "blur(1px)"
+      ctx.globalAlpha = 0.08 // minimal opacity to prevent halo/glow artifacts
       ctx.drawImage(img, drawX, drawY, drawW, drawH)
       ctx.restore()
       ctx.filter = "none"
@@ -673,23 +716,68 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
       // 9. Draw original scaled car on top
       ctx.drawImage(img, drawX, drawY, drawW, drawH)
 
-      // 9.5 Studio Softbox Light Reflections on the car body (masked to car silhouette)
+      // 9.5 Ambient Color Matching & Studio Highlights (masked to car silhouette)
       ctx.save()
       ctx.globalCompositeOperation = "source-atop"
       
-      // Left softbox highlight overlay on the car body
-      const leftLight = ctx.createLinearGradient(drawX, 0, drawX + drawW * 0.35, 0)
-      leftLight.addColorStop(0, "rgba(255, 255, 255, 0.16)")
+      // A. Ambient Room Tint Overlay (blends the car into the studio's color temperature)
+      if (config.bgStyle === "sunset") {
+        // Warm sunset orange/red ambient light wrap
+        const sunsetTint = ctx.createLinearGradient(drawX + drawW, drawY, drawX, drawY + drawH)
+        sunsetTint.addColorStop(0, "rgba(217, 139, 30, 0.15)") // orange glow from top right
+        sunsetTint.addColorStop(0.5, "rgba(166, 36, 41, 0.08)") // red mid-body warmth
+        sunsetTint.addColorStop(1, "rgba(26, 8, 3, 0.12)")      // dark warm floor reflection
+        ctx.fillStyle = sunsetTint
+        ctx.fillRect(drawX, drawY, drawW, drawH)
+      } else if (config.bgStyle === "scifi" || config.bgStyle === "classic" && config.accent === "#3399ff") {
+        // Cool electric blue glow
+        const blueTint = ctx.createLinearGradient(drawX, drawY, drawX + drawW, drawY + drawH)
+        blueTint.addColorStop(0, "rgba(51, 153, 255, 0.14)")  // neon blue highlights
+        blueTint.addColorStop(1, "rgba(5, 10, 26, 0.12)")     // indigo shadow tint
+        ctx.fillStyle = blueTint
+        ctx.fillRect(drawX, drawY, drawW, drawH)
+      } else if (config.carColorEn === "white" || config.name?.toLowerCase().includes("beyaz") || config.name?.toLowerCase().includes("gümüş")) {
+        // Soft white studio warmth / soft box tint
+        const whiteStudioTint = ctx.createLinearGradient(0, drawY, 0, drawY + drawH)
+        whiteStudioTint.addColorStop(0, "rgba(192, 160, 96, 0.04)") // warm gold accent lighting
+        whiteStudioTint.addColorStop(1, "rgba(240, 240, 240, 0.03)")
+        ctx.fillStyle = whiteStudioTint
+        ctx.fillRect(drawX, drawY, drawW, drawH)
+      } else if (config.carColorEn === "black" || config.name?.toLowerCase().includes("siyah") || config.name?.toLowerCase().includes("antrasit")) {
+        // Cool metallic grey reflection for black studio
+        const blackStudioTint = ctx.createLinearGradient(0, drawY, 0, drawY + drawH)
+        blackStudioTint.addColorStop(0, "rgba(255, 255, 255, 0.03)")
+        blackStudioTint.addColorStop(1, "rgba(10, 10, 15, 0.10)") // cool shadow grounding
+        ctx.fillStyle = blackStudioTint
+        ctx.fillRect(drawX, drawY, drawW, drawH)
+      }
+
+      // B. Glossy Softbox Highlights (using "overlay" blend mode for paint interaction, not flat white paint)
+      ctx.globalCompositeOperation = "overlay"
+      
+      // Slanted left metallic softbox reflection
+      const leftLight = ctx.createLinearGradient(drawX, drawY, drawX + drawW * 0.4, drawY)
+      leftLight.addColorStop(0, "rgba(255, 255, 255, 0.22)")
+      leftLight.addColorStop(0.5, "rgba(255, 255, 255, 0.08)")
       leftLight.addColorStop(1, "rgba(255, 255, 255, 0)")
       ctx.fillStyle = leftLight
-      ctx.fillRect(drawX, drawY, drawW * 0.35, drawH)
+      ctx.fillRect(drawX, drawY, drawW * 0.4, drawH)
       
-      // Right softbox highlight overlay on the car body
-      const rightLight = ctx.createLinearGradient(drawX + drawW * 0.65, 0, drawX + drawW, 0)
+      // Slanted right metallic softbox reflection
+      const rightLight = ctx.createLinearGradient(drawX + drawW * 0.6, drawY, drawX + drawW, drawY)
       rightLight.addColorStop(0, "rgba(255, 255, 255, 0)")
-      rightLight.addColorStop(1, "rgba(255, 255, 255, 0.16)")
+      rightLight.addColorStop(0.5, "rgba(255, 255, 255, 0.08)")
+      rightLight.addColorStop(1, "rgba(255, 255, 255, 0.22)")
       ctx.fillStyle = rightLight
-      ctx.fillRect(drawX + drawW * 0.65, drawY, drawW * 0.35, drawH)
+      ctx.fillRect(drawX + drawW * 0.6, drawY, drawW * 0.4, drawH)
+
+      // Overhead softbox reflection (highlights hood, roof, trunk)
+      const overheadLight = ctx.createLinearGradient(0, drawY, 0, drawY + drawH * 0.35)
+      overheadLight.addColorStop(0, "rgba(255, 255, 255, 0.28)")
+      overheadLight.addColorStop(0.5, "rgba(255, 255, 255, 0.10)")
+      overheadLight.addColorStop(1, "rgba(255, 255, 255, 0)")
+      ctx.fillStyle = overheadLight
+      ctx.fillRect(drawX, drawY, drawW, drawH * 0.35)
       
       ctx.restore()
       ctx.globalCompositeOperation = "source-over" // reset
@@ -756,6 +844,19 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
         ctx.restore()
       }
 
+      // 11. Professional Camera Vignette & Contrast Polish (ties the background and foreground together)
+      ctx.save()
+      const vignette = ctx.createRadialGradient(
+        W / 2, H / 2, W * 0.45,
+        W / 2, H / 2, W * 0.82
+      )
+      vignette.addColorStop(0, "rgba(0, 0, 0, 0)")
+      vignette.addColorStop(0.5, "rgba(0, 0, 0, 0.04)")
+      vignette.addColorStop(1, "rgba(0, 0, 0, 0.26)") // subtle dark border
+      ctx.fillStyle = vignette
+      ctx.fillRect(0, 0, W, H)
+      ctx.restore()
+
       resolve(canvas.toDataURL("image/png"))
     }
 
@@ -786,7 +887,8 @@ function makeDefaultConfig(colorProfile: CarColor, dealerName?: string, dealerLo
     lighting: "Yumuşak softbox aydınlatması ve bayi logosu ile profesyonel çekim stüdyosu",
     dealerName: dealerName || "AUTOFLOW",
     dealerLogoUrl: dealerLogoUrl || undefined,
-    carScale: 0.70
+    carScale: 0.70,
+    carColorEn: colorProfile.nameEn
   }
 }
 
