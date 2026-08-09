@@ -164,3 +164,45 @@ CREATE INDEX IF NOT EXISTS idx_araclar_user_id ON public.araclar(user_id);
 CREATE INDEX IF NOT EXISTS idx_araclar_qr_slug ON public.araclar(qr_slug);
 CREATE INDEX IF NOT EXISTS idx_galeri_slug ON public.galeri_profilleri(slug);
 CREATE INDEX IF NOT EXISTS idx_qr_events_arac_id ON public.qr_events(arac_id);
+
+
+-- ── BİLDİRİMLER TABLOSU VE POLİTİKALARI ──
+
+CREATE TABLE IF NOT EXISTS public.bildirimler (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE, -- Boş bırakılırsa tüm kullanıcılara gider (global)
+  title text NOT NULL,
+  description text NOT NULL,
+  read boolean DEFAULT false NOT NULL, -- Tekil bildirimler için okundu bilgisi
+  read_by text[] DEFAULT '{}'::text[] NOT NULL, -- Global bildirimleri kimlerin okuduğunu tutar (User ID dizisi)
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- RLS'i aktifleştir
+ALTER TABLE public.bildirimler ENABLE ROW LEVEL SECURITY;
+
+-- Her kullanıcı kendine özel veya global bildirimleri görebilir
+DROP POLICY IF EXISTS "Users can read own or global notifications" ON public.bildirimler;
+CREATE POLICY "Users can read own or global notifications"
+ON public.bildirimler FOR SELECT
+TO authenticated
+USING (user_id = auth.uid() OR user_id IS NULL);
+
+-- Her kullanıcı bildirimleri güncelleyebilir (okundu yapmak için)
+DROP POLICY IF EXISTS "Users can update own or global notifications read status" ON public.bildirimler;
+CREATE POLICY "Users can update own or global notifications read status"
+ON public.bildirimler FOR UPDATE
+TO authenticated
+USING (user_id = auth.uid() OR user_id IS NULL)
+WITH CHECK (user_id = auth.uid() OR user_id IS NULL);
+
+-- Sadece Admin'ler bildirim yönetebilir
+DROP POLICY IF EXISTS "Admins can manage notifications" ON public.bildirimler;
+CREATE POLICY "Admins can manage notifications"
+ON public.bildirimler FOR ALL
+TO authenticated
+USING (auth.jwt() ->> 'email' IN ('wwekaannet@gmail.com', 'admin@autoflow.com', 'kaanclgl@gmail.com'))
+WITH CHECK (auth.jwt() ->> 'email' IN ('wwekaannet@gmail.com', 'admin@autoflow.com', 'kaanclgl@gmail.com'));
+
+CREATE INDEX IF NOT EXISTS idx_bildirimler_user_id ON public.bildirimler(user_id);
+CREATE INDEX IF NOT EXISTS idx_bildirimler_created_at ON public.bildirimler(created_at DESC);

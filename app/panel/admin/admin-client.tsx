@@ -23,7 +23,9 @@ import {
   Upload,
   ArrowLeft,
   ArrowRight,
-  Loader2
+  Loader2,
+  Bell,
+  Send
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -53,7 +55,47 @@ export function AdminClient({
   tabletScansCount
 }: AdminClientProps) {
   const supabase = createClient()
-  const [aktifTab, setAktifTab] = useState<"stats" | "galleries" | "vehicles" | "subscriptions" >("stats")
+  const [aktifTab, setAktifTab] = useState<"stats" | "galleries" | "vehicles" | "subscriptions" | "notifications">("stats")
+
+  // Notification State Variables
+  const [notifTarget, setNotifTarget] = useState<"all" | "single">("all")
+  const [notifUserId, setNotifUserId] = useState<string>("")
+  const [notifTitle, setNotifTitle] = useState("")
+  const [notifDesc, setNotifDesc] = useState("")
+  const [notifSending, setNotifSending] = useState(false)
+
+  const handleSendNotification = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!notifTitle.trim() || !notifDesc.trim()) return
+
+    setNotifSending(true)
+    setMesaj(null)
+
+    try {
+      const payload = {
+        user_id: notifTarget === "single" ? notifUserId : null,
+        title: notifTitle,
+        description: notifDesc,
+        read: false,
+        read_by: []
+      }
+
+      const { error } = await supabase
+        .from("bildirimler")
+        .insert(payload)
+
+      if (error) throw error
+
+      setMesaj({ tip: "basarili", metin: "Bildirim başarıyla gönderildi! 🎉" })
+      setNotifTitle("")
+      setNotifDesc("")
+    } catch (err: any) {
+      console.error("Error sending notification:", err)
+      setMesaj({ tip: "hata", metin: `Bildirim gönderilemedi: ${err.message || err}` })
+    } finally {
+      setNotifSending(false)
+    }
+  }
   
   const [galleries, setGalleries] = useState(initialGalleries)
   const [vehicles, setVehicles] = useState(initialVehicles)
@@ -567,6 +609,7 @@ export function AdminClient({
             { id: "galleries", label: "Galeriler", icon: Users },
             { id: "vehicles", label: "Tüm Araçlar", icon: Car },
             { id: "subscriptions", label: "Abonelikler", icon: Sparkles },
+            { id: "notifications", label: "Bildirim Gönder", icon: Bell },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -994,6 +1037,128 @@ export function AdminClient({
                   })}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 5: BİLDİRİM GÖNDER */}
+        {aktifTab === "notifications" && (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            <div className="bg-af-accent/10 border border-af-accent/20 rounded-2xl p-4 text-sm text-af-accent flex items-start gap-3">
+              <Bell className="w-5 h-5 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold">Akıllı Bildirim Gönderme Paneli</p>
+                <p className="text-af-text-secondary text-xs mt-0.5">
+                  Buradan tüm kullanıcıların paneline genel (global) duyuru gönderebilir veya belirli bir galeriyi seçerek doğrudan ona özel bildirim iletebilirsiniz.
+                </p>
+              </div>
+            </div>
+
+            <div className="max-w-xl bg-af-surface border border-af-border rounded-3xl p-6 shadow-xl">
+              <form onSubmit={handleSendNotification} className="space-y-4">
+                {/* Bildirim Hedefi */}
+                <div>
+                  <label className="block text-af-text-secondary text-xs font-black uppercase tracking-wider mb-2">Alıcı Hedefi</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNotifTarget("all")
+                        setNotifUserId("")
+                      }}
+                      className={cn(
+                        "py-3 rounded-xl text-xs font-bold border transition-all text-center",
+                        notifTarget === "all"
+                          ? "bg-af-accent border-af-accent text-white shadow-lg shadow-af-accent/10"
+                          : "bg-af-surface-2 border-af-border text-af-text-secondary hover:text-white"
+                      )}
+                    >
+                      📢 Tüm Kullanıcılar (Global)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNotifTarget("single")
+                        if (galleries.length > 0) {
+                          setNotifUserId(galleries[0].user_id)
+                        }
+                      }}
+                      className={cn(
+                        "py-3 rounded-xl text-xs font-bold border transition-all text-center",
+                        notifTarget === "single"
+                          ? "bg-af-accent border-af-accent text-white shadow-lg shadow-af-accent/10"
+                          : "bg-af-surface-2 border-af-border text-af-text-secondary hover:text-white"
+                      )}
+                    >
+                      👤 Belirli Bir Galeri (Özel)
+                    </button>
+                  </div>
+                </div>
+
+                {/* Galeri Seçimi (Eğer tek kullanıcı ise) */}
+                {notifTarget === "single" && (
+                  <div className="animate-in slide-in-from-top-2 duration-300">
+                    <label className="block text-af-text-secondary text-xs font-black uppercase tracking-wider mb-2">Hedef Galeri Seçin</label>
+                    <select
+                      value={notifUserId}
+                      onChange={(e) => setNotifUserId(e.target.value)}
+                      required
+                      className="w-full bg-af-surface-2 border border-af-border text-white text-xs rounded-xl px-4 py-3 focus:outline-none focus:border-af-accent cursor-pointer"
+                    >
+                      {galleries.map((gal: any) => (
+                        <option key={gal.user_id} value={gal.user_id}>
+                          {gal.galeri_adi} ({gal.ad || gal.slug})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Başlık */}
+                <div>
+                  <label className="block text-af-text-secondary text-xs font-black uppercase tracking-wider mb-2">Bildirim Başlığı</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Örn: Sistem Bakım Çalışması"
+                    value={notifTitle}
+                    onChange={(e) => setNotifTitle(e.target.value)}
+                    className="w-full bg-af-surface-2 border border-af-border text-white text-xs rounded-xl px-4 py-3 focus:outline-none focus:border-af-accent placeholder:text-af-text-disabled"
+                  />
+                </div>
+
+                {/* Açıklama */}
+                <div>
+                  <label className="block text-af-text-secondary text-xs font-black uppercase tracking-wider mb-2">Bildirim Mesajı (Açıklama)</label>
+                  <textarea
+                    required
+                    rows={4}
+                    placeholder="Kullanıcıların göreceği mesaj detaylarını buraya yazın..."
+                    value={notifDesc}
+                    onChange={(e) => setNotifDesc(e.target.value)}
+                    className="w-full bg-af-surface-2 border border-af-border text-white text-xs rounded-xl px-4 py-3 focus:outline-none focus:border-af-accent placeholder:text-af-text-disabled resize-none"
+                  />
+                </div>
+
+                {/* Gönder butonu */}
+                <button
+                  type="submit"
+                  disabled={notifSending || !notifTitle.trim() || !notifDesc.trim()}
+                  className="w-full bg-af-accent hover:bg-af-accent-hover text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-af-accent/15 flex items-center justify-center gap-2 disabled:opacity-40"
+                >
+                  {notifSending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Gönderiliyor...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" />
+                      Bildirimi Yayınla
+                    </>
+                  )}
+                </button>
+              </form>
             </div>
           </div>
         )}

@@ -1,9 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Bell, Search, Plus, CheckCircle, Gift } from "lucide-react"
 import Link from "next/link"
 import { useAuth } from "@/lib/auth-context"
+import { createClient } from "@/lib/supabase/client"
+import { cn } from "@/lib/utils"
 
 interface PanelTopbarProps {
   baslik?: string
@@ -12,8 +14,10 @@ interface PanelTopbarProps {
 
 export function PanelTopbar({ baslik, aciklama }: PanelTopbarProps) {
   const { user } = useAuth()
+  const supabase = createClient()
   const [bildirimAcik, setBildirimAcik] = useState(false)
-  const [okunmamisVar, setOkunmamisVar] = useState(true)
+  const [okunmamisVar, setOkunmamisVar] = useState(false)
+  const [bildirimler, setBildirimler] = useState<any[]>([])
 
   const adSoyad: string = user?.user_metadata?.ad_soyad || user?.email || ""
   const galeriAdi: string = user?.user_metadata?.galeri_adi || ""
@@ -24,28 +28,85 @@ export function PanelTopbar({ baslik, aciklama }: PanelTopbarProps) {
     .join("")
     .toUpperCase()
 
-  const bildirimler = [
-    {
-      id: 1,
-      title: "Hoş Geldiniz!",
-      desc: "AutoFlow sistemine başarıyla kayıt oldunuz.",
-      time: "Şimdi",
-      icon: CheckCircle,
-      iconColor: "text-af-success bg-af-success/10",
-    },
-    {
-      id: 2,
-      title: "Pro Plan Deneme",
-      desc: "14 günlük ücretsiz Pro Plan denemeniz başladı.",
-      time: "Şimdi",
-      icon: Gift,
-      iconColor: "text-af-accent bg-af-accent/10",
+  // Gerçek zamanlı bildirimleri yükle
+  useEffect(() => {
+    if (!user) return
+    const userId = user.id
+    async function loadNotifications() {
+      try {
+        const { data, error } = await supabase
+          .from("bildirimler")
+          .select("*")
+          .or(`user_id.eq.${userId},user_id.is.null`)
+          .order("created_at", { ascending: false })
+          .limit(10)
+        
+        if (error) throw error
+        if (data) {
+          setBildirimler(data)
+          const hasUnread = data.some(b => {
+            if (b.user_id) {
+              return !b.read
+            } else {
+              return !b.read_by?.includes(userId)
+            }
+          })
+          setOkunmamisVar(hasUnread)
+        }
+      } catch (err) {
+        console.error("Notifications fetch error:", err)
+      }
     }
-  ]
+    
+    loadNotifications()
 
-  const handleBildirimTikla = () => {
+    const channel = supabase
+      .channel("realtime-bildirimler")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "bildirimler" },
+        () => {
+          loadNotifications()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [user])
+
+  const handleBildirimTikla = async () => {
     setBildirimAcik(!bildirimAcik)
-    setOkunmamisVar(false)
+    if (!bildirimAcik && okunmamisVar && user) {
+      setOkunmamisVar(false)
+      try {
+        const unreadList = bildirimler.filter(b => {
+          if (b.user_id) {
+            return !b.read
+          } else {
+            return !b.read_by?.includes(user.id)
+          }
+        })
+
+        for (const b of unreadList) {
+          if (b.user_id) {
+            await supabase
+              .from("bildirimler")
+              .update({ read: true })
+              .eq("id", b.id)
+          } else {
+            const updatedReadBy = [...(b.read_by || []), user.id]
+            await supabase
+              .from("bildirimler")
+              .update({ read_by: updatedReadBy })
+              .eq("id", b.id)
+          }
+        }
+      } catch (err) {
+        console.error("Error marking notifications as read:", err)
+      }
+    }
   }
 
   return (
@@ -100,21 +161,48 @@ export function PanelTopbar({ baslik, aciklama }: PanelTopbarProps) {
               <div className="absolute right-0 mt-2 w-80 bg-af-surface border border-af-border rounded-2xl shadow-2xl p-4 z-50 animate-fadeIn">
                 <div className="flex items-center justify-between border-b border-af-border pb-3 mb-3">
                   <h4 className="font-bold text-af-text text-sm">Bildirimler</h4>
-                  <span className="text-[10px] bg-af-accent/10 text-af-accent px-2 py-0.5 rounded-full font-semibold">Yeni</span>
+                  {okunmamisVar && (
+                    <span className="text-[9px] bg-af-accent/15 text-af-accent border border-af-accent/25 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Okunmamış</span>
+                  )}
                 </div>
-                <div className="space-y-3">
-                  {bildirimler.map((b) => (
-                    <div key={b.id} className="flex gap-3 p-2 rounded-xl hover:bg-af-surface-2 transition-colors">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${b.iconColor}`}>
-                        <b.icon className="w-4 h-4" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-xs text-af-text truncate">{b.title}</p>
-                        <p className="text-af-text-secondary text-[11px] leading-relaxed mt-0.5">{b.desc}</p>
-                        <span className="text-af-text-disabled text-[9px] block mt-1">{b.time}</span>
-                      </div>
-                    </div>
-                  ))}
+                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                  {bildirimler.length === 0 ? (
+                    <p className="text-center text-xs text-af-text-disabled py-6">Bildiriminiz bulunmuyor.</p>
+                  ) : (
+                    bildirimler.map((b) => {
+                      const isRead = b.user_id ? b.read : b.read_by?.includes(user?.id)
+                      const isGlobal = !b.user_id
+                      
+                      return (
+                        <div 
+                          key={b.id} 
+                          className={cn(
+                            "flex gap-3 p-2.5 rounded-xl hover:bg-af-surface-2/60 transition-colors border border-transparent",
+                            !isRead && "bg-af-accent/5 border-af-accent/10"
+                          )}
+                        >
+                          <div className={cn(
+                            "w-8.5 h-8.5 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5",
+                            isGlobal ? "text-amber-400 bg-amber-400/10" : "text-af-success bg-af-success/10"
+                          )}>
+                            {isGlobal ? <Bell className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-1.5">
+                              <p className="font-bold text-xs text-af-text truncate">{b.title}</p>
+                              {isGlobal && (
+                                <span className="text-[8px] bg-amber-500/10 border border-amber-500/20 text-amber-400 px-1 py-0.5 rounded font-black uppercase flex-shrink-0 leading-none">Genel</span>
+                              )}
+                            </div>
+                            <p className="text-af-text-secondary text-[11px] leading-relaxed mt-0.5 break-words">{b.description}</p>
+                            <span className="text-af-text-disabled text-[9px] block mt-1">
+                              {new Date(b.created_at).toLocaleDateString("tr-TR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    })
+                  )}
                 </div>
               </div>
             </>
