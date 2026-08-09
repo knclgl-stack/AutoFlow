@@ -614,46 +614,6 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
       ctx.fill()
       ctx.restore()
 
-      // C. Draw a realistic 3D circular turntable platform on the floor (grounds the car and matches the reference showroom plate)
-      if (config.bgStyle === "dealer") {
-        ctx.save()
-        // Draw 3D platform thickness/edge shadow
-        ctx.fillStyle = "#161619" // dark metal base edge
-        ctx.beginPath()
-        ctx.ellipse(W / 2, targetTireY + 6, carWidthReal * 0.54, carWidthReal * 0.165, 0, 0, Math.PI * 2)
-        ctx.fill()
-        
-        // Draw 3D platform chrome edge highlight
-        ctx.fillStyle = "#2a2b30"
-        ctx.beginPath()
-        ctx.ellipse(W / 2, targetTireY + 4, carWidthReal * 0.54, carWidthReal * 0.16, 0, 0, Math.PI * 2)
-        ctx.fill()
-
-        // Draw platform top surface (matte/glossy light grey turntable plate)
-        const platformGrad = ctx.createLinearGradient(0, targetTireY - carWidthReal * 0.15, 0, targetTireY + carWidthReal * 0.15)
-        platformGrad.addColorStop(0, "#f3f4f6") // clean white/light grey center
-        platformGrad.addColorStop(1, "#cfd5db")
-        ctx.fillStyle = platformGrad
-        ctx.beginPath()
-        ctx.ellipse(W / 2, targetTireY, carWidthReal * 0.535, carWidthReal * 0.155, 0, 0, Math.PI * 2)
-        ctx.fill()
-
-        // Soft outer metal ring line
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.9)"
-        ctx.lineWidth = 2
-        ctx.beginPath()
-        ctx.ellipse(W / 2, targetTireY, carWidthReal * 0.535, carWidthReal * 0.155, 0, 0, Math.PI * 2)
-        ctx.stroke()
-        
-        // Faint inner metal groove line
-        ctx.strokeStyle = "rgba(0, 0, 0, 0.08)"
-        ctx.lineWidth = 1
-        ctx.beginPath()
-        ctx.ellipse(W / 2, targetTireY, carWidthReal * 0.51, carWidthReal * 0.147, 0, 0, Math.PI * 2)
-        ctx.stroke()
-        ctx.restore()
-      }
-
       // Draw volumetric spotlight cone (aligned with scaled car center)
       if (config.showSpotlight) {
         ctx.save()
@@ -1318,7 +1278,6 @@ Kurallar:
   "showSpotlight": true,
   "showFloorGrid": false,
   "bgStyle": "dealer",
-  "censorPlate": false,
   "lightPanelOpacity": 0.15,
   "name": "temaya uygun kısa renk adı",
   "studioDesc": "oluşturulan yeni stüdyo stilinin adı",
@@ -1365,7 +1324,7 @@ Kurallar:
                 showSpotlight: parsed.showSpotlight !== undefined ? parsed.showSpotlight : false,
                 showFloorGrid: parsed.showFloorGrid !== undefined ? parsed.showFloorGrid : false,
                 bgStyle: parsed.bgStyle || "dealer",
-                censorPlate: parsed.censorPlate !== undefined ? parsed.censorPlate : false,
+                censorPlate: showroomConfig?.censorPlate || false,
                 lightPanelOpacity: typeof parsed.lightPanelOpacity === "number" ? parsed.lightPanelOpacity : 0.1,
                 name: parsed.name || "AI Özel",
                 studioDesc: parsed.studioDesc,
@@ -1556,7 +1515,7 @@ JSON Formatı:
         showSpotlight: parsed.showSpotlight !== undefined ? parsed.showSpotlight : false,
         showFloorGrid: parsed.showFloorGrid !== undefined ? parsed.showFloorGrid : false,
         bgStyle: parsed.bgStyle || "dealer",
-        censorPlate: parsed.censorPlate !== undefined ? parsed.censorPlate : false,
+        censorPlate: parsed.censorPlate !== undefined ? parsed.censorPlate : (showroomConfig?.censorPlate || false),
         lightPanelOpacity: typeof parsed.lightPanelOpacity === "number" ? parsed.lightPanelOpacity : 0.1,
         name: parsed.name || "Özel Revizyon",
         studioDesc: parsed.studioDesc,
@@ -2008,26 +1967,7 @@ JSON Formatı:
                           Zemin Yansıması
                         </label>
 
-                        {/* Ölçekleme (Slider) */}
-                        <div className="col-span-2 space-y-1 pt-1.5">
-                          <div className="flex items-center justify-between text-[11px] text-white/50">
-                            <span>Araba Boyutu (Mesafe / Uzaklık):</span>
-                            <span>{Math.round((showroomConfig.carScale || 0.70) * 100)}%</span>
-                          </div>
-                          <input
-                            type="range"
-                            min="0.45"
-                            max="0.85"
-                            step="0.05"
-                            value={showroomConfig.carScale || 0.70}
-                            onChange={(e) => {
-                              const updated = { ...showroomConfig, carScale: parseFloat(e.target.value) }
-                              setShowroomConfig(updated)
-                              triggerRedraw(updated)
-                            }}
-                            className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-af-accent"
-                          />
-                        </div>
+
                       </div>
                     )}
                   </div>
