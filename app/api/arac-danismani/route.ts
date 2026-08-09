@@ -127,7 +127,7 @@ ${(arac.ozellikler || []).length > 0 ? (arac.ozellikler || []).map((o: string) =
               ],
               generationConfig: {
                 temperature: 0.7,
-                maxOutputTokens: 800,
+                maxOutputTokens: 4000,
               }
             })
           }
@@ -158,7 +158,7 @@ ${(arac.ozellikler || []).length > 0 ? (arac.ozellikler || []).map((o: string) =
                 },
                 generationConfig: {
                   temperature: 0.7,
-                  maxOutputTokens: 800,
+                  maxOutputTokens: 4000,
                 }
               })
             }
