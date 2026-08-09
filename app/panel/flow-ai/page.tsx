@@ -964,6 +964,7 @@ export default function FlowAiPage() {
   const [userApiKey, setUserApiKey] = useState("")
   const [showApiKeyInput, setShowApiKeyInput] = useState(false)
   const [processing, setProcessing] = useState(false)
+  const [activeLightboxImage, setActiveLightboxImage] = useState<string | null>(null)
   const [processingStep, setProcessingStep] = useState(0)
   const [processingLabel, setProcessingLabel] = useState("")
   const [enhanceSuccess, setEnhanceSuccess] = useState(false)
@@ -1704,7 +1705,12 @@ JSON Formatı:
                 {/* Image display inside bubble */}
                 {m.imagePreview && (
                   <div className="w-full max-w-md rounded-xl overflow-hidden mb-2.5 relative border border-white/5 shadow-lg group">
-                    <img src={m.imagePreview} alt="" className="w-full h-auto object-contain bg-black/20" />
+                    <img 
+                      src={m.imagePreview} 
+                      alt="" 
+                      className="w-full h-auto object-contain bg-black/20 cursor-zoom-in hover:brightness-110 transition-all duration-200" 
+                      onClick={() => setActiveLightboxImage(m.imagePreview || null)}
+                    />
                     {m.sender === "ai" && !m.isTyping && (
                       <button
                         onClick={() => {
@@ -1815,6 +1821,45 @@ JSON Formatı:
         </div>
 
       </main>
+
+      {/* Lightbox Modal Overlay */}
+      {activeLightboxImage && (
+        <div 
+          className="fixed inset-0 bg-black/95 z-[999] flex items-center justify-center p-4 animate-in fade-in duration-200 cursor-zoom-out select-none"
+          onClick={() => setActiveLightboxImage(null)}
+        >
+          <button 
+            className="absolute top-6 right-6 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 text-lg border border-white/5 active:scale-95"
+            onClick={() => setActiveLightboxImage(null)}
+            title="Kapat"
+          >
+            ✕
+          </button>
+          <div 
+            className="relative max-w-5xl w-full max-h-[85vh] flex items-center justify-center"
+            onClick={e => e.stopPropagation()}
+          >
+            <img 
+              src={activeLightboxImage} 
+              alt="Büyük Görsel Önizleme" 
+              className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.8)] border border-white/10"
+            />
+            <button
+              onClick={() => {
+                const a = document.createElement("a")
+                a.href = activeLightboxImage
+                a.download = `flow-ai-studyo-buyuk.png`
+                document.body.appendChild(a)
+                a.click()
+                document.body.removeChild(a)
+              }}
+              className="absolute bottom-4 right-4 bg-af-accent hover:bg-af-accent-hover text-white font-bold py-3 px-6 rounded-2xl flex items-center gap-2 shadow-2xl transition-transform active:scale-95 text-xs border border-white/5"
+            >
+              <Download className="w-4 h-4" /> Görseli İndir
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
