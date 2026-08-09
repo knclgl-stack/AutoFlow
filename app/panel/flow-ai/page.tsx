@@ -381,23 +381,23 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
           // Draw a premium dealer vector emblem (wings + text)
           ctx.save()
           
-          // 1. Wings emblem
-          ctx.strokeStyle = "#1e1e24"
-          ctx.fillStyle = "#1e1e24"
+          // 1. Wings emblem in deep sapphire blue chrome
+          ctx.strokeStyle = "#1e3a8a" // deep blue border
+          ctx.fillStyle = "#2563eb"   // bright royal blue fill
           ctx.lineWidth = 2
           
-          // Center circle for initials
+          // Center circle/shield for initials
           const circleR = Math.max(12, H * 0.024)
           ctx.beginPath()
           ctx.arc(W / 2, logoY - circleR, circleR, 0, Math.PI * 2)
           ctx.stroke()
           
-          // Inner circle
+          // Inner circle/shield fill
           ctx.beginPath()
           ctx.arc(W / 2, logoY - circleR, circleR - 4, 0, Math.PI * 2)
           ctx.fill()
           
-          // Initials inside circle
+          // Initials inside circle/shield
           ctx.fillStyle = "#ffffff"
           const initials = logoText.substring(0, 2)
           ctx.font = `bold ${circleR * 0.85}px sans-serif`
@@ -405,8 +405,8 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
           ctx.textBaseline = "middle"
           ctx.fillText(initials, W / 2, logoY - circleR)
           
-          // Draw wings lines
-          ctx.strokeStyle = "#1e1e24"
+          // Draw wings lines in bright blue chrome
+          ctx.strokeStyle = "#3b82f6"
           ctx.lineWidth = 3
           // Left wing
           ctx.beginPath()
@@ -434,10 +434,10 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
           ctx.lineTo(W / 2 + circleR + 12, logoY - circleR + 8)
           ctx.stroke()
           
-          // 2. Logo text underneath
-          ctx.fillStyle = "#1e1e24"
-          const fontSize = Math.max(11, Math.floor(H * 0.026))
-          ctx.font = `bold ${fontSize}px sans-serif`
+          // 2. Logo text underneath in deep royal serif blue
+          ctx.fillStyle = "#1e3a8a"
+          const fontSize = Math.max(12, Math.floor(H * 0.028))
+          ctx.font = `bold italic ${fontSize}px Georgia, serif`
           ctx.textAlign = "center"
           ctx.textBaseline = "middle"
           ctx.fillText(logoText, W / 2, logoY + circleR * 0.8)
@@ -614,6 +614,46 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
       ctx.fill()
       ctx.restore()
 
+      // C. Draw a realistic 3D circular turntable platform on the floor (grounds the car and matches the reference showroom plate)
+      if (config.bgStyle === "dealer") {
+        ctx.save()
+        // Draw 3D platform thickness/edge shadow
+        ctx.fillStyle = "#161619" // dark metal base edge
+        ctx.beginPath()
+        ctx.ellipse(W / 2, targetTireY + 6, carWidthReal * 0.54, carWidthReal * 0.165, 0, 0, Math.PI * 2)
+        ctx.fill()
+        
+        // Draw 3D platform chrome edge highlight
+        ctx.fillStyle = "#2a2b30"
+        ctx.beginPath()
+        ctx.ellipse(W / 2, targetTireY + 4, carWidthReal * 0.54, carWidthReal * 0.16, 0, 0, Math.PI * 2)
+        ctx.fill()
+
+        // Draw platform top surface (matte/glossy light grey turntable plate)
+        const platformGrad = ctx.createLinearGradient(0, targetTireY - carWidthReal * 0.15, 0, targetTireY + carWidthReal * 0.15)
+        platformGrad.addColorStop(0, "#f3f4f6") // clean white/light grey center
+        platformGrad.addColorStop(1, "#cfd5db")
+        ctx.fillStyle = platformGrad
+        ctx.beginPath()
+        ctx.ellipse(W / 2, targetTireY, carWidthReal * 0.535, carWidthReal * 0.155, 0, 0, Math.PI * 2)
+        ctx.fill()
+
+        // Soft outer metal ring line
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.9)"
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.ellipse(W / 2, targetTireY, carWidthReal * 0.535, carWidthReal * 0.155, 0, 0, Math.PI * 2)
+        ctx.stroke()
+        
+        // Faint inner metal groove line
+        ctx.strokeStyle = "rgba(0, 0, 0, 0.08)"
+        ctx.lineWidth = 1
+        ctx.beginPath()
+        ctx.ellipse(W / 2, targetTireY, carWidthReal * 0.51, carWidthReal * 0.147, 0, 0, Math.PI * 2)
+        ctx.stroke()
+        ctx.restore()
+      }
+
       // Draw volumetric spotlight cone (aligned with scaled car center)
       if (config.showSpotlight) {
         ctx.save()
@@ -744,6 +784,19 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
       ctx.drawImage(img, drawX, drawY, drawW, drawH)
       ctx.restore()
       ctx.filter = "none"
+
+      // 8.7 Soft ambient backlight bloom behind the car silhouette (blends the edges with the bright wall)
+      if (config.bgStyle === "dealer") {
+        ctx.save()
+        ctx.filter = "blur(20px)"
+        ctx.globalAlpha = 0.16
+        ctx.fillStyle = "#ffffff"
+        ctx.beginPath()
+        // Draw a soft glowing shape behind the car body/roof to bleed the bright background over the silhouette
+        ctx.ellipse(W / 2, drawY + drawH * 0.5, carWidthReal * 0.45, drawH * 0.22, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.restore()
+      }
 
       // 9. Draw original scaled car on top
       ctx.drawImage(img, drawX, drawY, drawW, drawH)
