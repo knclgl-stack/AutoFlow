@@ -448,12 +448,16 @@ export function AracDetayClient({ arac, galeri }: AracDetayClientProps) {
             <h2 className="font-bold text-af-text mb-3">Satıcı</h2>
             <div className="flex items-center gap-3 mb-3">
               <div className={cn(
-                "w-12 h-12 rounded-xl flex items-center justify-center text-white font-black text-lg transition-all duration-300",
+                "w-12 h-12 rounded-xl flex items-center justify-center text-white font-black text-lg transition-all duration-300 overflow-hidden border border-af-border/20",
                 galeri.plan === "Elite" 
                   ? "bg-gradient-to-br from-amber-400 to-amber-600 shadow-md shadow-amber-500/25 text-black" 
                   : "bg-af-accent shadow-lg shadow-af-accent/25"
               )}>
-                {initials}
+                {galeri.logo_url ? (
+                  <img src={galeri.logo_url} alt={galeri.ad} className="w-full h-full object-cover" />
+                ) : (
+                  initials
+                )}
               </div>
               <div>
                 <div className="flex items-center gap-2">
