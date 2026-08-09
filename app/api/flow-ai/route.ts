@@ -36,7 +36,7 @@ Araç Fotoğrafçılığı Tavsiyelerimiz:
 
 export async function POST(req: NextRequest) {
   try {
-    const { message, history, apiKey } = await req.json()
+    const { message, history, apiKey, image } = await req.json()
 
     // API key: önce istek body'sinden, sonra .env'den
     const key = apiKey || process.env.GEMINI_API_KEY
@@ -69,6 +69,17 @@ export async function POST(req: NextRequest) {
     // Sırasıyla denenecek model isimleri
     const modelsToTry = ["gemini-3.5-flash", "gemini-3.6-flash", "gemini-flash-latest", "gemini-flash-lite-latest"]
 
+    // Multimodal desteği: Eğer görsel gönderilmişse parts dizisine ekle
+    const userParts: any[] = [{ text: message }]
+    if (image && image.mimeType && image.data) {
+      userParts.push({
+        inlineData: {
+          mimeType: image.mimeType,
+          data: image.data
+        }
+      })
+    }
+
     // Sohbet geçmişini Gemini API formatına dönüştür (roles: user, model)
     const contents = [
       ...formattedHistory.map((h: any) => ({
@@ -77,7 +88,7 @@ export async function POST(req: NextRequest) {
       })),
       {
         role: "user",
-        parts: [{ text: message }]
+        parts: userParts
       }
     ]
 

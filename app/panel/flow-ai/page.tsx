@@ -913,6 +913,7 @@ export default function FlowAiPage() {
   const [colorAnalyzing, setColorAnalyzing] = useState(false)
   const [colorSwatchVisible, setColorSwatchVisible] = useState(false)
   const [enhancedImage, setEnhancedImage] = useState<string | null>(null)
+  const [downsizedImageBase64, setDownsizedImageBase64] = useState<string | null>(null)
 
   /* --- Chat AI State --- */
   const [isTyping, setIsTyping] = useState(false)
@@ -1072,6 +1073,15 @@ export default function FlowAiPage() {
       const profile = detectDominantCarColor(data, W, H)
       setDetectedColor(profile)
       setShowroomConfig(makeDefaultConfig(profile, dealerName, dealerLogoUrl || undefined))
+      
+      // Capture downsized image base64 from canvas for multimodal analysis
+      try {
+        const downsized = canvas.toDataURL("image/png")
+        setDownsizedImageBase64(downsized)
+      } catch (err) {
+        console.warn("Could not capture downsized base64:", err)
+      }
+
       setColorSwatchVisible(true)
       setColorAnalyzing(false)
       addAiMsg(`🎨 Renk Analizi Tamamlandı!\n\nAracınızın baskın rengi: **${profile.name}** olarak tespit edildi.\n\nÖnerilen stüdyo kurulumu: Bayi Stüdyosu\n💡 Işık tasarımı: Yumuşak softbox aydınlatması ve bayi logosu ile profesyonel çekim stüdyosu\n\n"Görseli İyileştir" butonuna basarak AI stüdyo dönüşümünü başlatabilirsiniz!`)
@@ -1096,6 +1106,7 @@ export default function FlowAiPage() {
       setEnhancedImage(null)
       setDetectedColor(null)
       setShowroomConfig(null)
+      setDownsizedImageBase64(null)
       setColorSwatchVisible(false)
       setRevisionMode(false)
       if (transparentCarUrlState) {
@@ -1185,12 +1196,111 @@ export default function FlowAiPage() {
       const processedBlob = await imgly.removeBackground(uploadedImage)
       const transparentCarUrl = URL.createObjectURL(processedBlob)
 
-      setProcessingStep(75)
+      setProcessingStep(70)
+      setProcessingLabel("Yapay zeka araç rengini ve açısını analiz edip stüdyo tasarlıyor...")
+
+      let finalConfig = showroomConfig!
+
+      if (downsizedImageBase64) {
+        try {
+          const mimeType = downsizedImageBase64.split(";")[0].split(":")[1]
+          const base64Data = downsizedImageBase64.split(",")[1]
+
+          const aiPrompt = `Sen profesyonel bir stüdyo fotoğrafçılığı ve araba aydınlatma uzmanı olan Flow AI'sın.
+Sana gönderilen araç görselini analiz et. 
+Aracın rengini ve kameraya göre çekiş açısını (örneğin: ön-çapraz 3/4, tam yan profil, düz ön, arka-çapraz) belirle.
+
+Bu analizine dayanarak, araba için en iyi aydınlatma, zemin yansıması, tepe spotlight'ı ve duvar rengi ayarlarını hesapla.
+
+Kurallar:
+1. ARKA PLAN RENGİ (bg): Aracın rengiyle doğrudan çakışmamalı, onunla şık bir kontrast oluşturmalı veya tamamlayıcı olmalıdır (Örn: beyaz araç için altın vurgulu bej veya antrasit stüdyo; siyah araç için kenar ışıklı koyu gri/siyah stüdyo; kırmızı araç için sıcak tonlar veya sahil gün batımı; mavi araç için soğuk neon tonları).
+2. IŞIK AÇILARI VE REFEKSİYONLAR:
+   - Araç ön-çapraz 3/4 veya düz ön ise tepe spotlight'ını geniş tut (spotlightWidth: 0.95), zemin yansımasını (reflectionOpacity) 0.20-0.25 arası yap.
+   - Araç tam yan profil ise zemin yansımasını daha ayna gibi yap (reflectionOpacity: 0.35), neon şeritleri açarak araca derinlik kat (showNeonStrips: true).
+   - Çekim açısını düşünerek ışık panellerini (leftPanelColor, rightPanelColor) ve bunların yansıma yoğunluğunu (lightPanelOpacity) ayarla.
+3. Çıktı sadece aşağıdaki JSON formatında olmalı, başka hiçbir açıklama veya markdown bloğu içermemelidir:
+{
+  "bg": "duvar rengi hex kodu",
+  "floorColor": "zemin rengi hex kodu",
+  "accent": "neon şerit rengi hex kodu",
+  "spotlightColor": "spotlight rengi hex kodu",
+  "leftPanelColor": "sol panel rengi hex kodu",
+  "rightPanelColor": "sağ panel rengi hex kodu",
+  "gridColor": "karo çizgileri rengi hex kodu",
+  "reflectionOpacity": 0.15,
+  "spotlightWidth": 0.65,
+  "showNeonStrips": true,
+  "showSpotlight": true,
+  "showFloorGrid": false,
+  "bgStyle": "dealer",
+  "censorPlate": false,
+  "lightPanelOpacity": 0.15,
+  "name": "temaya uygun kısa renk adı",
+  "studioDesc": "oluşturulan yeni stüdyo stilinin adı",
+  "lighting": "aracın rengine ve açısına göre yapılmış özel ışık tasarımı açıklaması (örn: 'Mercedes-Benz ön-çapraz açısına uygun yumuşak softbox ve rim aydınlatması')",
+  "carScale": 0.70
+}`
+
+          const res = await fetch("/api/flow-ai", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              message: aiPrompt,
+              history: [],
+              apiKey: userApiKey || undefined,
+              image: {
+                mimeType,
+                data: base64Data
+              }
+            })
+          })
+
+          const data = await res.json()
+          if (res.ok && data.reply) {
+            let replyText = data.reply.trim()
+            if (replyText.startsWith("```json")) replyText = replyText.substring(7)
+            if (replyText.startsWith("```")) replyText = replyText.substring(3)
+            if (replyText.endsWith("```")) replyText = replyText.substring(0, replyText.length - 3)
+            replyText = replyText.trim()
+
+            const parsed = JSON.parse(replyText)
+            if (parsed.bg && parsed.accent && parsed.studioDesc) {
+              finalConfig = {
+                ...showroomConfig!,
+                bg: parsed.bg,
+                floorColor: parsed.floorColor || parsed.bg,
+                accent: parsed.accent,
+                spotlightColor: parsed.spotlightColor || parsed.accent,
+                leftPanelColor: parsed.leftPanelColor || parsed.accent,
+                rightPanelColor: parsed.rightPanelColor || parsed.accent,
+                gridColor: parsed.gridColor || parsed.accent,
+                reflectionOpacity: typeof parsed.reflectionOpacity === "number" ? parsed.reflectionOpacity : 0.16,
+                spotlightWidth: typeof parsed.spotlightWidth === "number" ? parsed.spotlightWidth : 0.65,
+                showNeonStrips: parsed.showNeonStrips !== undefined ? parsed.showNeonStrips : false,
+                showSpotlight: parsed.showSpotlight !== undefined ? parsed.showSpotlight : false,
+                showFloorGrid: parsed.showFloorGrid !== undefined ? parsed.showFloorGrid : false,
+                bgStyle: parsed.bgStyle || "dealer",
+                censorPlate: parsed.censorPlate !== undefined ? parsed.censorPlate : false,
+                lightPanelOpacity: typeof parsed.lightPanelOpacity === "number" ? parsed.lightPanelOpacity : 0.1,
+                name: parsed.name || "AI Özel",
+                studioDesc: parsed.studioDesc,
+                lighting: parsed.lighting || "AI Işık Tasarımı",
+                carScale: typeof parsed.carScale === "number" ? parsed.carScale : 0.70
+              }
+              setShowroomConfig(finalConfig)
+            }
+          }
+        } catch (aiErr) {
+          console.warn("AI showroom config generation failed, falling back to static config:", aiErr)
+        }
+      }
+
+      setProcessingStep(85)
       setProcessingLabel("Stüdyo ışıkları, ıslak zemin yansımaları ve yumuşak gölgeler render ediliyor...")
 
       // Stüdyo şablonu ile birleştir (Live preview does not bake the plate cover)
       const compositeBase64 = await createStudioComposite(transparentCarUrl, {
-        ...showroomConfig!,
+        ...finalConfig,
         censorPlate: false
       })
       setEnhancedImage(compositeBase64)
@@ -1308,7 +1418,15 @@ JSON Formatı:
       const res = await fetch("/api/flow-ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: systemPrompt, history: [], apiKey: userApiKey || undefined })
+        body: JSON.stringify({
+          message: systemPrompt,
+          history: [],
+          apiKey: userApiKey || undefined,
+          image: downsizedImageBase64 ? {
+            mimeType: downsizedImageBase64.split(";")[0].split(":")[1],
+            data: downsizedImageBase64.split(",")[1]
+          } : undefined
+        })
       })
       const data = await res.json()
       
