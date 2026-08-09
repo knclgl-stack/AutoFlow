@@ -54,15 +54,15 @@ export function AracDetayClient({ arac, galeri }: AracDetayClientProps) {
 
   // Welcome message initialization
   useEffect(() => {
-    if (chatOpen && chatMessages.length === 0) {
+    if (chatMessages.length === 0) {
       setChatMessages([
         {
           sender: "ai",
-          text: `Merhaba! Ben ${galeri.ad || 'AutoFlow'} Satış Danışmanı Flow AI. 🤖\n\nBu harika ${arac.yil} model ${arac.marka} ${arac.model} hakkında aklınıza takılan tüm soruları (tramer, km, boya/değişen, donanımlar vb.) yanıtlamak ve size yardımcı olmak için buradayım. Nasıl yardımcı olabilirim?`
+          text: `Merhaba! Ben Flow AI. 🤖 Bu ${arac.marka} ${arac.model} hakkında sormak istediğiniz soruları (tramer, boya, pazarlık vb.) yanıtlamak için buradayım. Nasıl yardımcı olabilirim?`
         }
       ])
     }
-  }, [chatOpen, chatMessages.length, galeri.ad, arac.yil, arac.marka, arac.model])
+  }, [chatMessages.length, arac.marka, arac.model])
 
   const handleSendChatMessage = async (textToSend?: string) => {
     const messageText = textToSend || chatInput
