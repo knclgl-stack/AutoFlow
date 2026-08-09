@@ -982,69 +982,7 @@ export default function FlowAiPage() {
   const [transparentCarUrlState, setTransparentCarUrlState] = useState<string | null>(null)
   const [showroomConfig, setShowroomConfig] = useState<ShowroomConfig | null>(null)
 
-  const [plateXPercent, setPlateXPercent] = useState<number>(41)
-  const [plateYPercent, setPlateYPercent] = useState<number>(68)
-  const [plateWPercent, setPlateWPercent] = useState<number>(18)
-  const [plateHPercent, setPlateHPercent] = useState<number>(4)
-  const [isDraggingPlate, setIsDraggingPlate] = useState(false)
-  const [isResizingPlate, setIsResizingPlate] = useState(false)
 
-  // Drag & Resize mouse movements
-  useEffect(() => {
-    if (!isDraggingPlate && !isResizingPlate) return
-
-    const handleMove = (clientX: number, clientY: number) => {
-      const container = sliderRef.current
-      if (!container) return
-      const rect = container.getBoundingClientRect()
-      
-      if (isDraggingPlate) {
-        let newX = ((clientX - rect.left) / rect.width) * 100 - plateWPercent / 2
-        let newY = ((clientY - rect.top) / rect.height) * 100 - plateHPercent / 2
-        
-        newX = Math.max(0, Math.min(100 - plateWPercent, newX))
-        newY = Math.max(0, Math.min(100 - plateHPercent, newY))
-        
-        setPlateXPercent(newX)
-        setPlateYPercent(newY)
-      } else if (isResizingPlate) {
-        const plateLeftPX = rect.left + (plateXPercent / 100) * rect.width
-        const plateTopPX = rect.top + (plateYPercent / 100) * rect.height
-        
-        let newW = ((clientX - plateLeftPX) / rect.width) * 100
-        let newH = ((clientY - plateTopPX) / rect.height) * 100
-        
-        newW = Math.max(5, Math.min(40, newW))
-        newH = Math.max(2, Math.min(15, newH))
-        
-        setPlateWPercent(newW)
-        setPlateHPercent(newH)
-      }
-    }
-
-    const onMouseMove = (e: MouseEvent) => handleMove(e.clientX, e.clientY)
-    const onTouchMove = (e: TouchEvent) => handleMove(e.touches[0].clientX, e.touches[0].clientY)
-
-    const onMouseUp = () => {
-      setIsDraggingPlate(false)
-      setIsResizingPlate(false)
-      if (showroomConfig) {
-        triggerRedraw(showroomConfig, plateXPercent, plateYPercent, plateWPercent, plateHPercent)
-      }
-    }
-
-    window.addEventListener("mousemove", onMouseMove)
-    window.addEventListener("touchmove", onTouchMove)
-    window.addEventListener("mouseup", onMouseUp)
-    window.addEventListener("touchend", onMouseUp)
-
-    return () => {
-      window.removeEventListener("mousemove", onMouseMove)
-      window.removeEventListener("touchmove", onTouchMove)
-      window.removeEventListener("mouseup", onMouseUp)
-      window.removeEventListener("touchend", onMouseUp)
-    }
-  }, [isDraggingPlate, isResizingPlate, plateXPercent, plateYPercent, plateWPercent, plateHPercent, showroomConfig])
 
   function now() {
     return new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })
@@ -1096,18 +1034,22 @@ export default function FlowAiPage() {
   }, [mesajlar])
 
   /* ── Gerçek Renk Algılama ── */
-  const analyzeImageColor = useCallback((imageUrl: string, forcedProfile?: CarColor) => {
-    if (forcedProfile) {
-      setDetectedColor(forcedProfile)
-      setShowroomConfig(makeDefaultConfig(forcedProfile, dealerName, dealerLogoUrl || undefined))
-      setColorSwatchVisible(true)
+  /* ── Otomatik Renk Algılama & Stüdyo Sentezi ── */
+  const analyzeAndEnhanceImage = async (imageUrl: string) => {
+    if (dbPlan === "Essential") {
+      addAiMsg("⚠️ Essentials planındasınız. Akıllı Stüdyo özelliklerini kullanabilmek için lütfen Professional veya Elite plana geçin.")
       return
     }
 
     setColorAnalyzing(true)
+    setProcessing(true)
+    setProcessingStep(10)
+    setProcessingLabel("Araç rengi ve kadraj açısı analiz ediliyor...")
+
     const img = new Image()
     img.crossOrigin = "anonymous"
-    img.onload = () => {
+    img.onload = async () => {
+      // 1. Baskın renk tespiti ve alt-boyutlandırma
       const canvas = canvasRef.current!
       const W = Math.min(img.width, 400), H = Math.min(img.height, 400)
       canvas.width = W; canvas.height = H
@@ -1116,140 +1058,45 @@ export default function FlowAiPage() {
       const { data } = ctx.getImageData(0, 0, W, H)
       const profile = detectDominantCarColor(data, W, H)
       setDetectedColor(profile)
-      setShowroomConfig(makeDefaultConfig(profile, dealerName, dealerLogoUrl || undefined))
       
-      // Capture downsized image base64 from canvas for multimodal analysis
+      const defaultConfig = makeDefaultConfig(profile, dealerName, dealerLogoUrl || undefined)
+      setShowroomConfig(defaultConfig)
+      setColorSwatchVisible(true)
+      setColorAnalyzing(false)
+      
+      let base64Image = null
       try {
-        const downsized = canvas.toDataURL("image/png")
-        setDownsizedImageBase64(downsized)
+        base64Image = canvas.toDataURL("image/png")
+        setDownsizedImageBase64(base64Image)
       } catch (err) {
         console.warn("Could not capture downsized base64:", err)
       }
 
-      setColorSwatchVisible(true)
-      setColorAnalyzing(false)
-      addAiMsg(`🎨 Renk Analizi Tamamlandı!\n\nAracınızın baskın rengi: **${profile.name}** olarak tespit edildi.\n\nÖnerilen stüdyo kurulumu: Bayi Stüdyosu\n💡 Işık tasarımı: Yumuşak softbox aydınlatması ve bayi logosu ile profesyonel çekim stüdyosu\n\n"Görseli İyileştir" butonuna basarak AI stüdyo dönüşümünü başlatabilirsiniz!`)
-    }
-    img.onerror = () => {
-      setColorAnalyzing(false)
-      setDetectedColor(COLOR_PROFILES[4])
-      setShowroomConfig(makeDefaultConfig(COLOR_PROFILES[4], dealerName, dealerLogoUrl || undefined))
-    }
-    img.src = imageUrl
-  }, [dealerName, dealerLogoUrl])
+      // 2. Arka plan silme ve stüdyo birleştirme
+      try {
+        setProcessingStep(30)
+        setProcessingLabel("Yapay zeka stüdyo motoru indiriliyor...")
+        
+        const imgly = await eval("import('https://cdn.jsdelivr.net/npm/@imgly/background-removal/+esm')")
+        
+        setProcessingStep(55)
+        setProcessingLabel("Araç hatları maskeleniyor ve arka plan siliniyor...")
+        
+        const processedBlob = await imgly.removeBackground(imageUrl)
+        const transparentCarUrl = URL.createObjectURL(processedBlob)
+        setTransparentCarUrlState(transparentCarUrl)
 
-  /* ── Dosya Yükleme ── */
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => {
-      const src = reader.result as string
-      setUploadedImage(src)
-      setEnhanceSuccess(false)
-      setEnhancedImage(null)
-      setDetectedColor(null)
-      setShowroomConfig(null)
-      setDownsizedImageBase64(null)
-      setColorSwatchVisible(false)
-      setRevisionMode(false)
-      if (transparentCarUrlState) {
-        URL.revokeObjectURL(transparentCarUrlState)
-        setTransparentCarUrlState(null)
-      }
-      const userMsg: Mesaj = {
-        id: Date.now() + Math.random(), sender: "user",
-        text: `📸 "${file.name}" yüklendi — renk analizi başlatılıyor...`,
-        timestamp: now(), imagePreview: src
-      }
-      setMesajlar(prev => [...prev, userMsg])
-      addAiMsg("Fotoğraf alındı! Şimdi görüntüyü analiz edip aracın rengini tespit ediyorum...")
-      setTimeout(() => analyzeImageColor(src), 800)
-    }
-    reader.readAsDataURL(file)
-  }
+        setProcessingStep(75)
+        setProcessingLabel("Stüdyo ışıkları ve yansımalar tasarlanıyor...")
 
-  const selectColorProfile = (profile: CarColor) => {
-    setDetectedColor(profile)
-    const newConfig = makeDefaultConfig(profile, dealerName, dealerLogoUrl || undefined)
-    setShowroomConfig(newConfig)
-    triggerRedraw(newConfig)
-    addAiMsg(`🎨 Stüdyo konsepti değiştirildi: **${profile.name}**\n\n• Yeni Stil: Bayi Stüdyosu\n• Işıklandırma: Yumuşak softbox aydınlatması ve bayi logosu ile profesyonel çekim stüdyosu`)
-  }
+        let finalConfig = defaultConfig
 
-  const triggerRedraw = async (config: ShowroomConfig, px = plateXPercent, py = plateYPercent, pw = plateWPercent, ph = plateHPercent) => {
-    if (transparentCarUrlState) {
-      const compositeBase64 = await createStudioComposite(transparentCarUrlState, {
-        ...config,
-        censorPlate: false, // Live preview never bakes the plate cover (prevents double plates)
-        plateXPercent: px,
-        plateYPercent: py,
-        plateWPercent: pw,
-        plateHPercent: ph
-      })
-      setEnhancedImage(compositeBase64)
-    }
-  }
+        if (base64Image) {
+          try {
+            const mimeType = base64Image.split(";")[0].split(":")[1]
+            const base64Data = base64Image.split(",")[1]
 
-  const handleDownload = async () => {
-    if (!transparentCarUrlState || !showroomConfig) return
-    const finalImage = await createStudioComposite(transparentCarUrlState, {
-      ...showroomConfig,
-      plateXPercent,
-      plateYPercent,
-      plateWPercent,
-      plateHPercent
-    })
-    
-    const a = document.createElement("a")
-    a.href = finalImage
-    a.download = "flow-ai-enhanced.png"
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-  }
-
-  /* ── AI İyileştirme ── */
-  const handleEnhance = async () => {
-    if (!uploadedImage || !detectedColor) return
-
-    if (dbPlan === "Essential") {
-      alert("Flow AI Akıllı Stüdyo özelliğini kullanabilmek için lütfen Professional veya Elite plana geçiş yapın.")
-      return
-    }
-
-    console.log("Flow AI: Gerçek zamanlı yapay zeka stüdyo sentezi başlatılıyor. Mock veri kullanılmıyor.")
-
-    setProcessing(true)
-    setProcessingStep(5)
-    setEnhanceSuccess(false)
-    setEnhancedImage(null)
-
-    // Kullanıcının kendi fotoğrafı için GERÇEK AI arka plan silme ve stüdyo birleştirme
-    try {
-      setProcessingStep(20)
-      setProcessingLabel("Yapay zeka stüdyo motoru indiriliyor (yaklaşık 20MB)...")
-      
-      // img.ly background removal modülünü tarayıcıya dinamik yükle
-      const imgly = await eval("import('https://cdn.jsdelivr.net/npm/@imgly/background-removal/+esm')")
-      
-      setProcessingStep(45)
-      setProcessingLabel("Araç hatları maskeleniyor ve arka plan siliniyor...")
-      
-      // Arka planı sil ve şeffaf blob elde et
-      const processedBlob = await imgly.removeBackground(uploadedImage)
-      const transparentCarUrl = URL.createObjectURL(processedBlob)
-
-      setProcessingStep(70)
-      setProcessingLabel("Yapay zeka araç rengini ve açısını analiz edip stüdyo tasarlıyor...")
-
-      let finalConfig = showroomConfig!
-
-      if (downsizedImageBase64) {
-        try {
-          const mimeType = downsizedImageBase64.split(";")[0].split(":")[1]
-          const base64Data = downsizedImageBase64.split(",")[1]
-          const aiPrompt = `Sen profesyonel bir stüdyo fotoğrafçılığı ve araba aydınlatma uzmanı olan Flow AI'sın.
+            const aiPrompt = `Sen profesyonel bir stüdyo fotoğrafçılığı ve araba aydınlatma uzmanı olan Flow AI'sın.
 Sana gönderilen araç görselini analiz et. 
 Aracın rengini ve kameraya göre çekiş açısını (örneğin: ön-çapraz 3/4, tam yan profil, düz ön, arka-çapraz) belirle.
 
@@ -1288,96 +1135,136 @@ Kurallar:
   "shadowScaleX": 1.0
 }`
 
-          const res = await fetch("/api/flow-ai", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              message: aiPrompt,
-              history: [],
-              apiKey: userApiKey || undefined,
-              image: {
-                mimeType,
-                data: base64Data
-              }
+            const res = await fetch("/api/flow-ai", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                message: aiPrompt,
+                history: [],
+                apiKey: userApiKey || undefined,
+                image: {
+                  mimeType,
+                  data: base64Data
+                }
+              })
             })
-          })
 
-          const data = await res.json()
-          if (res.ok && data.reply) {
-            let replyText = data.reply.trim()
-            if (replyText.startsWith("```json")) replyText = replyText.substring(7)
-            if (replyText.startsWith("```")) replyText = replyText.substring(3)
-            if (replyText.endsWith("```")) replyText = replyText.substring(0, replyText.length - 3)
-            replyText = replyText.trim()
+            const data = await res.json()
+            if (res.ok && data.reply) {
+              let replyText = data.reply.trim()
+              if (replyText.startsWith("```json")) replyText = replyText.substring(7)
+              if (replyText.startsWith("```")) replyText = replyText.substring(3)
+              if (replyText.endsWith("```")) replyText = replyText.substring(0, replyText.length - 3)
+              replyText = replyText.trim()
 
-            const parsed = JSON.parse(replyText)
-            if (parsed.bg && parsed.accent && parsed.studioDesc) {
-              finalConfig = {
-                ...showroomConfig!,
-                bg: parsed.bg,
-                floorColor: parsed.floorColor || parsed.bg,
-                accent: parsed.accent,
-                spotlightColor: parsed.spotlightColor || parsed.accent,
-                leftPanelColor: parsed.leftPanelColor || parsed.accent,
-                rightPanelColor: parsed.rightPanelColor || parsed.accent,
-                gridColor: parsed.gridColor || parsed.accent,
-                reflectionOpacity: typeof parsed.reflectionOpacity === "number" ? parsed.reflectionOpacity : 0.16,
-                spotlightWidth: typeof parsed.spotlightWidth === "number" ? parsed.spotlightWidth : 0.65,
-                showNeonStrips: parsed.showNeonStrips !== undefined ? parsed.showNeonStrips : false,
-                showSpotlight: parsed.showSpotlight !== undefined ? parsed.showSpotlight : false,
-                showFloorGrid: parsed.showFloorGrid !== undefined ? parsed.showFloorGrid : false,
-                bgStyle: parsed.bgStyle || "dealer",
-                censorPlate: showroomConfig?.censorPlate || false,
-                lightPanelOpacity: typeof parsed.lightPanelOpacity === "number" ? parsed.lightPanelOpacity : 0.1,
-                name: parsed.name || "AI Özel",
-                studioDesc: parsed.studioDesc,
-                lighting: parsed.lighting || "AI Işık Tasarımı",
-                carScale: typeof parsed.carScale === "number" ? parsed.carScale : 0.70,
-                shadowOpacity: typeof parsed.shadowOpacity === "number" ? parsed.shadowOpacity : 0.60,
-                shadowOffsetY: typeof parsed.shadowOffsetY === "number" ? parsed.shadowOffsetY : 0,
-                shadowScaleX: typeof parsed.shadowScaleX === "number" ? parsed.shadowScaleX : 1.0
+              const parsed = JSON.parse(replyText)
+              if (parsed.bg && parsed.accent && parsed.studioDesc) {
+                finalConfig = {
+                  ...defaultConfig,
+                  bg: parsed.bg,
+                  floorColor: parsed.floorColor || parsed.bg,
+                  accent: parsed.accent,
+                  spotlightColor: parsed.spotlightColor || parsed.accent,
+                  leftPanelColor: parsed.leftPanelColor || parsed.accent,
+                  rightPanelColor: parsed.rightPanelColor || parsed.accent,
+                  gridColor: parsed.gridColor || parsed.accent,
+                  reflectionOpacity: typeof parsed.reflectionOpacity === "number" ? parsed.reflectionOpacity : 0.16,
+                  spotlightWidth: typeof parsed.spotlightWidth === "number" ? parsed.spotlightWidth : 0.65,
+                  showNeonStrips: parsed.showNeonStrips !== undefined ? parsed.showNeonStrips : false,
+                  showSpotlight: parsed.showSpotlight !== undefined ? parsed.showSpotlight : false,
+                  showFloorGrid: parsed.showFloorGrid !== undefined ? parsed.showFloorGrid : false,
+                  bgStyle: parsed.bgStyle || "dealer",
+                  censorPlate: defaultConfig.censorPlate,
+                  lightPanelOpacity: typeof parsed.lightPanelOpacity === "number" ? parsed.lightPanelOpacity : 0.1,
+                  name: parsed.name || "AI Özel",
+                  studioDesc: parsed.studioDesc,
+                  lighting: parsed.lighting || "AI Işık Tasarımı",
+                  carScale: typeof parsed.carScale === "number" ? parsed.carScale : 0.70,
+                  shadowOpacity: typeof parsed.shadowOpacity === "number" ? parsed.shadowOpacity : 0.60,
+                  shadowOffsetY: typeof parsed.shadowOffsetY === "number" ? parsed.shadowOffsetY : 0,
+                  shadowScaleX: typeof parsed.shadowScaleX === "number" ? parsed.shadowScaleX : 1.0
+                }
+                setShowroomConfig(finalConfig)
               }
-              setShowroomConfig(finalConfig)
             }
+          } catch (aiErr) {
+            console.warn("AI showroom config failed, using fallback:", aiErr)
           }
-        } catch (aiErr) {
-          console.warn("AI showroom config generation failed, falling back to static config:", aiErr)
         }
+
+        setProcessingStep(90)
+        setProcessingLabel("Profesyonel stüdyo birleştiriliyor...")
+
+        const compositeBase64 = await createStudioComposite(transparentCarUrl, {
+          ...finalConfig,
+          censorPlate: false
+        })
+        setEnhancedImage(compositeBase64)
+        
+        setProcessingStep(100)
+        setProcessingLabel("Hazır!")
+        setProcessing(false)
+        setEnhanceSuccess(true)
+        setRevisionMode(true)
+
+        // Mesaj listesine stüdyolu görseli ve indirme linkini ekle
+        setMesajlar(prev => [
+          ...prev,
+          {
+            id: Date.now() + Math.random(),
+            sender: "ai",
+            text: `✅ Araç stüdyoya başarıyla yerleştirildi!\n\n• Stil: **${finalConfig.studioDesc}**\n• Işık Konsepti: *${finalConfig.lighting}*\n\nGörseli aşağıdaki butonla indirebilir veya değiştirmek istediğiniz detayları bana yazabilirsiniz! (Örn: 'ışıkları neon kırmızı yap')`,
+            imagePreview: compositeBase64,
+            timestamp: now()
+          }
+        ])
+
+      } catch (err: any) {
+        console.error("Enhance error:", err)
+        setProcessing(false)
+        addAiMsg(`⚠️ Görsel işlenirken bir hata oluştu: ${err.message || err}`)
       }
-
-      setProcessingStep(85)
-      setProcessingLabel("Stüdyo ışıkları, ıslak zemin yansımaları ve yumuşak gölgeler render ediliyor...")
-
-      // Stüdyo şablonu ile birleştir (Live preview does not bake the plate cover)
-      const compositeBase64 = await createStudioComposite(transparentCarUrl, {
-        ...finalConfig,
-        censorPlate: false
-      })
-      setEnhancedImage(compositeBase64)
-      setTransparentCarUrlState(transparentCarUrl)
-
-      setProcessingStep(100)
-      setProcessingLabel("Tamamlandı!")
-      
-      setProcessing(false)
-      setEnhanceSuccess(true)
-      setSliderPos(50)
-
-      let successMsg = `✅ İşlem başarıyla tamamlandı!\n\nAracınızın orijinal hatları ve kalitesi korunarak "${detectedColor.studioDesc}" ortamı oluşturuldu.\n\n• Arka plan: ${detectedColor.name} uyumlu stüdyo\n• Zemin: Gerçekçi araba yansıması ve gölgesi\n• Işıklandırma: Yumuşak softbox aydınlatması\n\nÖncesi/sonrası için slider'ı kaydırabilirsiniz!`
-      addAiMsg(successMsg)
-    } catch (err: any) {
-      console.error("Yapay zeka stüdyo hatası:", err)
-      setProcessing(false)
-      alert(`Fotoğraf işlenirken bir hata oluştu. Lütfen görselin kalitesini veya internet bağlantınızı kontrol edin. Hata: ${err.message || err}`)
     }
+    img.src = imageUrl
   }
 
-  /* ── Görsel Revize Etme (Prompt ile) ── */
-  const handleRevisePromptMode = () => {
-    setRevisionMode(true)
-    setTimeout(() => chatInputRef.current?.focus(), 50)
-    addAiMsg("💡 Revizyon Modu Aktif!\n\nLütfen stüdyoda değiştirmek istediğiniz rengi veya temayı yazın.\n\nÖrnekler:\n• \"ışıkları kırmızı yap\"\n• \"mavi neon showroom olsun\"\n• \"arka planı biraz daha koyu gri yap\"")
+  /* ── Dosya Yükleme Hooku ── */
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = async () => {
+      const src = reader.result as string
+      setUploadedImage(src)
+      setEnhanceSuccess(false)
+      setEnhancedImage(null)
+      setDetectedColor(null)
+      setShowroomConfig(null)
+      setDownsizedImageBase64(null)
+      setColorSwatchVisible(false)
+      setRevisionMode(false)
+      if (transparentCarUrlState) {
+        URL.revokeObjectURL(transparentCarUrlState)
+        setTransparentCarUrlState(null)
+      }
+      
+      const userMsg: Mesaj = {
+        id: Date.now() + Math.random(),
+        sender: "user",
+        text: `📸 "${file.name}" yüklendi. Stüdyo sentezi başlatılıyor...`,
+        imagePreview: src,
+        timestamp: now()
+      }
+      setMesajlar(prev => [...prev, userMsg])
+      
+      setTimeout(() => {
+        analyzeAndEnhanceImage(src)
+      }, 200)
+    }
+    reader.readAsDataURL(file)
   }
+
+
 
   const processRevision = async (prompt: string): Promise<boolean> => {
     if (!uploadedImage || !transparentCarUrlState || !detectedColor || !showroomConfig) return false
@@ -1626,28 +1513,20 @@ JSON Formatı:
     sendMessage(inputText)
   }
 
-  /* ── Slider Mouse/Touch ── */
-  const handleSliderInput = (clientX: number) => {
-    if (!sliderRef.current) return
-    const rect = sliderRef.current.getBoundingClientRect()
-    const pct = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100))
-    setSliderPos(pct)
-  }
-
   /* ─────────────────────────────────────────────
      RENDER
   ───────────────────────────────────────────── */
   return (
     <div className="flex flex-col min-h-screen bg-af-bg text-af-text">
-      {/* Hidden canvas for color analysis */}
+      {/* Hidden canvas for stüdyo rendering */}
       <canvas ref={canvasRef} className="hidden" />
 
       <PanelTopbar
         baslik="Flow AI Akıllı Stüdyo"
-        aciklama="Araç rengini algılayarak otomatik stüdyo ortamı oluşturun"
+        aciklama="Araç fotoğraflarınızı yapay zeka yardımıyla sohbet ederek stüdyo ortamına yerleştirin"
       />
 
-      <main className="flex-1 p-4 lg:p-6 max-w-7xl w-full mx-auto grid grid-cols-1 lg:grid-cols-12 gap-5 pb-12 relative">
+      <main className="flex-1 p-4 lg:p-6 max-w-4xl w-full mx-auto pb-12 relative flex flex-col items-center">
 
         {/* Essential Paketi Kilitli Ekranı */}
         {dbPlan === "Essential" && (
@@ -1677,73 +1556,134 @@ JSON Formatı:
           </div>
         )}
 
-        {/* ════ SOL: CHAT (4 kolon) ════ */}
-        <div className="lg:col-span-4 bg-af-surface border border-af-border rounded-2xl flex flex-col" style={{ height: "680px" }}>
+        {/* ════ CHAT WINDOW ════ */}
+        <div className="w-full bg-af-surface border border-af-border rounded-3xl flex flex-col shadow-2xl overflow-hidden" style={{ height: "720px" }}>
 
           {/* Chat Header */}
-          <div className="p-3 border-b border-af-border bg-af-surface-2/30 flex-shrink-0">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-af-accent to-purple-600 flex items-center justify-center shadow-lg shadow-af-accent/20">
-                  <Sparkles className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-white text-sm">Flow AI Asistanı</h3>
-                  <span className="text-[10px] text-af-success flex items-center gap-1">
-                    {isTyping
-                      ? <><span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /> Yazıyor...</>
-                      : <><span className="w-1.5 h-1.5 rounded-full bg-af-success animate-pulse" /> Çevrimiçi · Gemini AI</>}
-                  </span>
-                </div>
+          <div className="p-4 border-b border-af-border bg-af-surface-2/30 flex-shrink-0 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-af-accent to-purple-600 flex items-center justify-center shadow-lg shadow-af-accent/25">
+                <Sparkles className="w-5 h-5 text-white" />
               </div>
+              <div>
+                <h3 className="font-black text-white text-sm">Flow AI Akıllı Stüdyo Asistanı</h3>
+                <span className="text-[10px] text-af-success flex items-center gap-1.5">
+                  {isTyping || processing
+                    ? <><span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /> İşleniyor...</>
+                    : <><span className="w-1.5 h-1.5 rounded-full bg-af-success animate-pulse" /> Çevrimiçi · Gemini AI</>}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {uploadedImage && (
+                <button
+                  onClick={() => {
+                    setUploadedImage(null)
+                    setEnhancedImage(null)
+                    setTransparentCarUrlState(null)
+                    setEnhanceSuccess(false)
+                    setRevisionMode(false)
+                    setMesajlar([
+                      {
+                        id: 1,
+                        sender: "ai",
+                        text: `Merhaba! Yeni bir araç fotoğrafı yükleyerek başlayabilirsiniz. 📸`,
+                        timestamp: now()
+                      }
+                    ])
+                  }}
+                  className="text-[10px] font-bold text-af-text-secondary hover:text-white bg-af-surface-2 border border-af-border hover:border-white/20 px-3 py-2 rounded-xl transition-colors flex items-center gap-1.5"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" /> Yeni Fotoğraf
+                </button>
+              )}
+
               <button
                 onClick={() => setShowApiKeyInput(p => !p)}
                 title="API Anahtarı Gir"
-                className="w-7 h-7 rounded-lg bg-af-surface-2 border border-af-border text-af-text-disabled hover:text-af-accent hover:border-af-accent/30 flex items-center justify-center transition-colors text-xs"
+                className="w-8 h-8 rounded-xl bg-af-surface-2 border border-af-border text-af-text-disabled hover:text-af-accent hover:border-af-accent/30 flex items-center justify-center transition-colors text-xs"
               >
                 🔑
               </button>
             </div>
-            {showApiKeyInput && (
-              <div className="mt-2 flex gap-1.5">
-                <input
-                  type="password"
-                  placeholder="Gemini API Key (AIza...)"
-                  value={userApiKey}
-                  onChange={e => setUserApiKey(e.target.value)}
-                  className="flex-1 bg-af-surface border border-af-border text-white text-[11px] rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-af-accent placeholder:text-af-text-disabled"
-                />
-                <button
-                  onClick={() => setShowApiKeyInput(false)}
-                  className="text-[11px] bg-af-accent text-white px-2.5 py-1.5 rounded-lg font-semibold hover:bg-af-accent-hover transition-colors"
-                >
-                  Kaydet
-                </button>
-              </div>
-            )}
           </div>
 
+          {/* API Key input box */}
+          {showApiKeyInput && (
+            <div className="p-3 border-b border-af-border bg-af-surface-2/20 flex gap-2 animate-in slide-in-from-top-2 duration-300">
+              <input
+                type="password"
+                placeholder="Gemini API Key (AIza...)"
+                value={userApiKey}
+                onChange={e => setUserApiKey(e.target.value)}
+                className="flex-1 bg-af-surface border border-af-border text-white text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-af-accent placeholder:text-af-text-disabled"
+              />
+              <button
+                onClick={() => setShowApiKeyInput(false)}
+                className="text-xs bg-af-accent text-white px-3 py-2 rounded-xl font-bold hover:bg-af-accent-hover transition-colors"
+              >
+                Kaydet
+              </button>
+            </div>
+          )}
 
+          {/* Mesaj Listesi */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            
+            {/* Upload Zone (No image yet) */}
+            {!uploadedImage && (
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="border-2 border-dashed border-af-border/60 hover:border-af-accent/40 rounded-3xl p-10 flex flex-col items-center text-center cursor-pointer hover:bg-af-surface-2/20 transition-all group my-6"
+              >
+                <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="image/*" className="hidden" />
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-af-accent/10 to-purple-600/10 border border-af-accent/20 group-hover:border-af-accent/40 text-af-accent flex items-center justify-center mb-4 transition-all group-hover:scale-105">
+                  <Upload className="w-6 h-6 animate-pulse" />
+                </div>
+                <h4 className="font-bold text-white text-sm mb-1.5">Araç Fotoğrafı Yükleyin</h4>
+                <p className="text-xs text-af-text-disabled max-w-sm leading-relaxed">
+                  Arka planı otomatik temizlenecek araba görselinizi buraya bırakın veya tıklayın.
+                </p>
+                <p className="text-[10px] text-af-text-disabled/60 mt-3">Desteklenen formatlar: PNG, JPG, WEBP</p>
+              </div>
+            )}
 
-          {/* Mesajlar */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-3">
+            {/* Mesaj Balonları */}
             {mesajlar.map((m) => (
               <div
                 key={m.id}
                 className={cn(
-                  "flex flex-col rounded-2xl p-3 text-xs leading-relaxed max-w-[90%]",
+                  "flex flex-col rounded-2xl p-3.5 text-xs leading-relaxed max-w-[85%] shadow-sm",
                   m.sender === "ai"
                     ? m.isError
-                      ? "bg-red-950/40 border border-red-500/20 mr-auto rounded-tl-sm"
-                      : "bg-af-surface-2 border border-af-border mr-auto rounded-tl-sm"
+                      ? "bg-red-950/40 border border-red-500/20 mr-auto rounded-tl-sm text-af-text"
+                      : "bg-af-surface-2 border border-af-border mr-auto rounded-tl-sm text-af-text"
                     : "bg-af-accent ml-auto text-white rounded-tr-sm"
                 )}
               >
+                {/* Image display inside bubble */}
                 {m.imagePreview && (
-                  <div className="w-full h-24 rounded-lg overflow-hidden mb-2">
-                    <img src={m.imagePreview} alt="" className="w-full h-full object-cover" />
+                  <div className="w-full max-w-md rounded-xl overflow-hidden mb-2.5 relative border border-white/5 shadow-lg group">
+                    <img src={m.imagePreview} alt="" className="w-full h-auto object-contain bg-black/20" />
+                    {m.sender === "ai" && !m.isTyping && (
+                      <button
+                        onClick={() => {
+                          const a = document.createElement("a")
+                          a.href = m.imagePreview!
+                          a.download = `flow-ai-studyo-${m.id}.png`
+                          document.body.appendChild(a)
+                          a.click()
+                          document.body.removeChild(a)
+                        }}
+                        className="absolute bottom-2.5 right-2.5 bg-af-accent hover:bg-af-accent-hover text-white text-[10px] font-bold px-3 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-lg active:scale-95"
+                      >
+                        <Download className="w-3.5 h-3.5" /> İndir
+                      </button>
+                    )}
                   </div>
                 )}
+
                 {m.isTyping ? (
                   <span className="flex items-center gap-1 h-4">
                     <span className="w-1.5 h-1.5 rounded-full bg-af-accent animate-bounce" style={{ animationDelay: "0ms" }} />
@@ -1751,419 +1691,88 @@ JSON Formatı:
                     <span className="w-1.5 h-1.5 rounded-full bg-af-accent animate-bounce" style={{ animationDelay: "300ms" }} />
                   </span>
                 ) : (
-                  <p className="whitespace-pre-line">{m.text}</p>
+                  <p className="whitespace-pre-line leading-relaxed">{m.text}</p>
                 )}
+                
                 {!m.isTyping && (
-                  <span className={cn("text-[9px] text-right mt-1", m.sender === "ai" ? (m.isError ? "text-red-400/60" : "text-af-text-disabled") : "text-white/60")}>
+                  <span className={cn("text-[9px] text-right mt-1.5 block", m.sender === "ai" ? (m.isError ? "text-red-400/60" : "text-af-text-disabled") : "text-white/60")}>
                     {m.timestamp}
                   </span>
                 )}
               </div>
             ))}
+
+            {/* AI İşleme Göstergesi */}
+            {processing && (
+              <div className="bg-af-surface-2 border border-af-border mr-auto rounded-2xl rounded-tl-sm p-4 w-full max-w-sm space-y-3 animate-pulse">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-af-accent to-purple-600 flex items-center justify-center text-white">
+                    <Sparkles className="w-3.5 h-3.5 animate-pulse" />
+                  </div>
+                  <div>
+                    <h5 className="font-bold text-white text-xs">Flow AI Stüdyo İşleniyor</h5>
+                    <p className="text-[10px] text-af-text-disabled">Aşama: {processingStep}%</p>
+                  </div>
+                </div>
+                <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
+                  <div
+                    className="h-1.5 rounded-full bg-af-accent transition-all duration-300"
+                    style={{ width: `${processingStep}%` }}
+                  />
+                </div>
+                <p className="text-[10px] text-af-accent font-medium leading-none">{processingLabel}</p>
+              </div>
+            )}
+
             <div ref={chatEndRef} />
           </div>
 
-          {/* Hızlı sorular */}
-          <div className="px-3 py-2 border-t border-af-border flex gap-1.5 overflow-x-auto flex-shrink-0">
-            {["Nasıl çalışır?", "En iyi araç fotoğraf açısı?", "Fiyatlar nedir?", "Siyah araba için ne önerirsin?"].map(q => (
-              <button
-                key={q}
-                disabled={isTyping}
-                onClick={() => sendMessage(q)}
-                className="text-[10px] font-semibold bg-af-surface-2 hover:bg-af-border disabled:opacity-40 text-af-text-secondary hover:text-white px-2.5 py-1 rounded-lg whitespace-nowrap transition-colors border border-af-border/60 flex-shrink-0"
-              >
-                {q}
-              </button>
-            ))}
-          </div>
+          {/* Quick Suggestions / Revizyon Şablonları */}
+          {enhanceSuccess && (
+            <div className="px-4 py-2 bg-af-surface border-t border-af-border flex gap-1.5 overflow-x-auto flex-shrink-0 scrollbar-none">
+              {[
+                "Işıkları neon mavi yap",
+                "Arka planı koyu stüdyo yap",
+                "Neon şeritleri kapat",
+                "Sarı aydınlatma ekle",
+                "Spotlight ışığını kapat"
+              ].map(q => (
+                <button
+                  key={q}
+                  disabled={isTyping || processing}
+                  onClick={() => sendMessage(q)}
+                  className="text-[10px] font-semibold bg-af-surface-2 hover:bg-af-border disabled:opacity-40 text-af-text-secondary hover:text-white px-3 py-1.5 rounded-xl whitespace-nowrap transition-colors border border-af-border flex-shrink-0"
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          )}
 
-          {/* Input */}
-          <form id="flow-ai-form" onSubmit={handleSend} className="p-3 border-t border-af-border flex gap-2 flex-shrink-0">
+          {/* Form / Chat Input */}
+          <form id="flow-ai-form" onSubmit={handleSend} className="p-4 border-t border-af-border bg-af-surface-2/10 flex gap-2.5 flex-shrink-0">
             <input
               ref={chatInputRef}
               value={inputText}
               onChange={e => setInputText(e.target.value)}
-              disabled={isTyping}
-              placeholder={isTyping ? "Flow AI yazıyor..." : revisionMode ? "Örn: 'ışıkları kırmızı yap', 'mavi neon stüdyo'..." : "Herhangi bir şey sorun..."}
-              className="flex-1 bg-af-surface-2 border border-af-border text-af-text placeholder:text-af-text-disabled rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-af-accent transition-colors disabled:opacity-60"
+              disabled={isTyping || processing || !uploadedImage}
+              placeholder={
+                !uploadedImage 
+                  ? "Başlamak için önce fotoğraf yükleyin..." 
+                  : isTyping || processing
+                    ? "İşlem sürüyor, lütfen bekleyin..."
+                    : "Görsel üzerinde değiştirmek istediğiniz detayları yazın (Örn: 'ışıkları yeşil yap')..."
+              }
+              className="flex-1 bg-af-surface-2 border border-af-border text-af-text placeholder:text-af-text-disabled rounded-2xl px-4 py-3 text-xs focus:outline-none focus:border-af-accent transition-colors disabled:opacity-50"
             />
             <button
               type="submit"
-              disabled={isTyping || !inputText.trim()}
-              className="w-9 h-9 rounded-xl bg-af-accent hover:bg-af-accent-hover disabled:opacity-40 text-white flex items-center justify-center flex-shrink-0 transition-colors"
+              disabled={isTyping || processing || !inputText.trim() || !uploadedImage}
+              className="w-10 h-10 rounded-2xl bg-af-accent hover:bg-af-accent-hover disabled:opacity-30 text-white flex items-center justify-center flex-shrink-0 transition-colors"
             >
-              {isTyping ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+              {isTyping || processing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             </button>
           </form>
-        </div>
-
-        {/* ════ SAĞ: STÜDYO PANEL (8 kolon) ════ */}
-        <div className="lg:col-span-8 space-y-5">
-
-          {/* ── Renk Analiz Sonuç Kartı ── */}
-          {colorSwatchVisible && detectedColor && (
-            <div
-              className={cn(
-                "rounded-2xl p-5 border flex items-center justify-between gap-4 animate-in slide-in-from-top-2 duration-500",
-                `bg-gradient-to-r ${detectedColor.cssGradient} border-white/10`
-              )}
-            >
-              <div className="flex items-center gap-4">
-                <div className="relative">
-                  <div
-                    className="w-14 h-14 rounded-2xl shadow-2xl border-2 border-white/20 flex-shrink-0"
-                    style={{ backgroundColor: detectedColor.hex }}
-                  />
-                  <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-af-success border-2 border-af-bg flex items-center justify-center">
-                    <Check className="w-3 h-3 text-white" />
-                  </div>
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase font-bold tracking-wider text-white/50 mb-0.5">AI Renk Analizi Sonucu</p>
-                  <h3 className="font-black text-white text-base flex items-center gap-2">
-                    <Palette className="w-4 h-4" style={{ color: detectedColor.accent }} />
-                    {detectedColor.name}
-                  </h3>
-                  <p className="text-xs text-white/60 mt-0.5">{detectedColor.studioDesc}</p>
-                </div>
-              </div>
-              <div className="hidden sm:block text-right text-xs text-white/50 max-w-[200px]">
-                <Zap className="w-4 h-4 mb-1 ml-auto" style={{ color: detectedColor.accent }} />
-                <p className="leading-relaxed">{detectedColor.lighting}</p>
-              </div>
-            </div>
-          )}
-
-          {/* ── Ana Stüdyo Alanı ── */}
-          <div className="bg-af-surface border border-af-border rounded-2xl p-5 space-y-5">
-
-            <div className="flex items-center gap-2 border-b border-af-border pb-4">
-              <div className="w-8 h-8 rounded-lg bg-af-accent/10 text-af-accent flex items-center justify-center">
-                <Eye className="w-4 h-4" />
-              </div>
-              <div>
-                <h2 className="font-bold text-white text-sm">Stüdyo Önizleme</h2>
-                <p className="text-[10px] text-af-text-disabled">Renk analizi → Otomatik stüdyo seçimi → AI render</p>
-              </div>
-            </div>
-
-            {/* ── Fotoğraf Yükle Alanı (eğer henüz görsel yoksa) ── */}
-            {!uploadedImage && (
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-af-border hover:border-af-accent/40 rounded-2xl p-10 flex flex-col items-center text-center cursor-pointer hover:bg-af-surface-2/20 transition-all group"
-              >
-                <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="image/*" className="hidden" />
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-af-accent/20 to-purple-600/20 border border-af-accent/20 group-hover:border-af-accent/40 text-af-accent flex items-center justify-center mb-4 transition-all group-hover:scale-105">
-                  <Upload className="w-7 h-7" />
-                </div>
-                <h4 className="font-bold text-white text-base mb-1.5">Araç Fotoğrafı Yükleyin</h4>
-                <p className="text-sm text-af-text-disabled max-w-md leading-relaxed">
-                  Yapay zeka aracın rengini <span className="text-af-accent font-semibold">gerçek zamanlı olarak algılar</span> ve rengiyle uyumlu en iyi stüdyo ortamını, ışık kurulumunu otomatik seçer.
-                </p>
-                <p className="text-xs text-af-text-disabled mt-3">PNG, JPG, WEBP · veya sol panelden örnek seçin</p>
-              </div>
-            )}
-
-            {/* ── Görsel Var: Önizleme Alanı ── */}
-            {uploadedImage && !enhanceSuccess && (
-              <div className="space-y-4">
-                {/* Orijinal görsel önizleme */}
-                <div className="relative aspect-[16/10] rounded-2xl overflow-hidden border border-af-border bg-black">
-                  <img src={uploadedImage} alt="Orijinal" className="w-full h-full object-cover" />
-                  <span className="absolute top-3 left-3 bg-black/70 backdrop-blur-sm text-white text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg">
-                    Orijinal
-                  </span>
-
-                  {/* Renk analiz overlay */}
-                  {colorAnalyzing && (
-                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center">
-                      <div className="relative w-12 h-12 mb-3">
-                        <span className="absolute inset-0 border-4 border-af-accent/30 border-t-af-accent rounded-full animate-spin" />
-                        <Palette className="w-5 h-5 text-af-accent absolute inset-0 m-auto" />
-                      </div>
-                      <p className="text-white text-sm font-bold">Renk Analizi Yapılıyor...</p>
-                      <p className="text-white/50 text-xs mt-1">Baskın araç rengi tespit ediliyor</p>
-                    </div>
-                  )}
-
-                  {/* AI İşleme overlay */}
-                  {processing && (
-                    <div
-                      className={cn("absolute inset-0 backdrop-blur-sm flex flex-col items-center justify-center", `bg-gradient-to-br ${detectedColor?.cssGradient || "from-gray-900 to-black"}`)}
-                      style={{ opacity: 0.92 }}
-                    >
-                      <div className="relative w-16 h-16 mb-4">
-                        <span className="absolute inset-0 border-4 border-af-accent/30 border-t-af-accent rounded-full animate-spin" />
-                        <Sparkles className="w-7 h-7 text-af-accent absolute inset-0 m-auto animate-pulse" />
-                      </div>
-                      <h4 className="font-bold text-white text-sm mb-3">Flow AI Stüdyo Render Ediliyor</h4>
-                      <div className="w-56 bg-white/10 h-2 rounded-full overflow-hidden">
-                        <div
-                          className="h-2 rounded-full transition-all duration-700"
-                          style={{ width: `${processingStep}%`, backgroundColor: detectedColor?.accent || "#7c3aed" }}
-                        />
-                      </div>
-                      <p className="text-xs text-white/60 mt-2.5 font-medium animate-pulse">{processingLabel}</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Manuel Renk/Stüdyo Seçimi ve Ek Kontroller */}
-                {uploadedImage && !processing && !colorAnalyzing && (
-                  <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-4">
-                    {/* Renk Swatch'ları */}
-                    <div className="space-y-2">
-                      <p className="text-xs font-bold text-white/80 flex items-center gap-1.5">
-                        <Palette className="w-3.5 h-3.5 text-af-accent" />
-                        Stüdyo Konsepti Seçin (Algılamayı Düzenle):
-                      </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {COLOR_PROFILES.map((p) => {
-                          const isSelected = detectedColor?.nameEn === p.nameEn
-                          return (
-                            <button
-                              key={p.nameEn}
-                              onClick={() => selectColorProfile(p)}
-                              type="button"
-                              className={cn(
-                                "px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all flex items-center gap-1.5",
-                                isSelected 
-                                  ? "bg-white text-black border-white scale-102" 
-                                  : "bg-black/40 text-white/70 border-white/5 hover:border-white/20"
-                              )}
-                            >
-                              <div className="w-3 h-3 rounded-full border border-white/10 flex-shrink-0" style={{ backgroundColor: p.hex }} />
-                              {p.name.split(" / ")[0]}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Hızlı Ayar Anahtarları */}
-                    {showroomConfig && (
-                      <div className="border-t border-white/5 pt-3 grid grid-cols-2 gap-3">
-                        <label className="flex items-center gap-2 text-xs text-white/70 cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={showroomConfig.censorPlate}
-                            onChange={(e) => {
-                              const updated = { ...showroomConfig, censorPlate: e.target.checked }
-                              setShowroomConfig(updated)
-                              triggerRedraw(updated)
-                            }}
-                            className="w-3.5 h-3.5 rounded border-white/10 bg-black/40 text-af-accent focus:ring-0"
-                          />
-                          Plakayı Kapat
-                        </label>
-
-                        <label className="flex items-center gap-2 text-xs text-white/70 cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={showroomConfig.reflectionOpacity > 0}
-                            onChange={(e) => {
-                              const updated = { 
-                                ...showroomConfig, 
-                                reflectionOpacity: e.target.checked ? 0.16 : 0.0,
-                                lightPanelOpacity: e.target.checked ? 0.1 : 0.0
-                              }
-                              setShowroomConfig(updated)
-                              triggerRedraw(updated)
-                            }}
-                            className="w-3.5 h-3.5 rounded border-white/10 bg-black/40 text-af-accent focus:ring-0"
-                          />
-                          Zemin Yansıması
-                        </label>
-
-
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Aksiyon butonu */}
-                <button
-                  onClick={handleEnhance}
-                  disabled={processing || colorAnalyzing || !detectedColor}
-                  className="w-full flex items-center justify-center gap-2.5 bg-af-accent hover:bg-af-accent-hover disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl transition-all hover:shadow-xl hover:shadow-af-accent/25 text-sm"
-                >
-                  {processing ? (
-                    <><RefreshCw className="w-4 h-4 animate-spin" /> AI Stüdyo Oluşturuluyor...</>
-                  ) : colorAnalyzing ? (
-                    <><RefreshCw className="w-4 h-4 animate-spin" /> Renk Analizi Yapılıyor...</>
-                  ) : detectedColor ? (
-                    <>
-                      <Sparkles className="w-4 h-4" />
-                      Görseli İyileştir — {detectedColor.name} Stüdyosu
-                      <div className="w-4 h-4 rounded-full border-2 border-white/40" style={{ backgroundColor: detectedColor.hex }} />
-                    </>
-                  ) : (
-                    <><Upload className="w-4 h-4" /> Önce Fotoğraf Yükleyin</>
-                  )}
-                </button>
-
-                {uploadedImage && (
-                  <button
-                    onClick={() => { setUploadedImage(null); setDetectedColor(null); setColorSwatchVisible(false); setEnhanceSuccess(false) }}
-                    className="w-full flex items-center justify-center gap-2 text-af-text-disabled hover:text-af-error text-xs py-2 transition-colors"
-                  >
-                    <X className="w-3.5 h-3.5" /> Görseli Kaldır
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* ── BAŞARI: Before / After Slider ── */}
-            {enhanceSuccess && detectedColor && (
-              <div className="space-y-4">
-                <p className="text-xs font-bold uppercase tracking-wider text-af-text-secondary flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-af-success animate-pulse" />
-                  Slider'ı sürükleyerek öncesi/sonrası karşılaştırın
-                </p>
-
-                <div
-                  ref={sliderRef}
-                  className="relative w-full aspect-[16/10] overflow-hidden rounded-2xl border border-af-border cursor-ew-resize select-none"
-                  onMouseMove={e => { if (isDragging.current) handleSliderInput(e.clientX) }}
-                  onMouseDown={e => { e.preventDefault(); isDragging.current = true }}
-                  onMouseUp={() => { isDragging.current = false }}
-                  onMouseLeave={() => { isDragging.current = false }}
-                  onTouchMove={e => handleSliderInput(e.touches[0].clientX)}
-                >
-                  {/* After (full width behind) */}
-                  <img src={enhancedImage || ""} alt="After" className="absolute inset-0 w-full h-full object-cover" />
-                  <span className="absolute right-3 top-3 bg-af-accent text-white text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg z-10">
-                    AI Stüdyo
-                  </span>
-
-                  {/* Draggable & Resizable License Plate Cover */}
-                  {showroomConfig?.censorPlate && (
-                    <div
-                      onMouseDown={(e) => {
-                        e.stopPropagation()
-                        setIsDraggingPlate(true)
-                      }}
-                      onTouchStart={(e) => {
-                        e.stopPropagation()
-                        setIsDraggingPlate(true)
-                      }}
-                      className="absolute group border border-amber-400/40 hover:border-amber-400 cursor-move select-none flex items-center bg-[#111112] rounded shadow-2xl overflow-hidden"
-                      style={{
-                        left: `${plateXPercent}%`,
-                        top: `${plateYPercent}%`,
-                        width: `${plateWPercent}%`,
-                        height: `${plateHPercent}%`,
-                        zIndex: 8
-                      }}
-                    >
-                      {/* TR Blue stripe on the left */}
-                      <div className="h-full bg-[#003399] flex flex-col justify-end items-center px-[2%] py-[4%] select-none rounded-l" style={{ width: "7.8%" }}>
-                        <span className="text-white font-bold select-none text-[3.5px] leading-none mb-[10%]">TR</span>
-                      </div>
-
-                      {/* Brand Name centered in the remaining black space */}
-                      <div className="flex-1 h-full flex items-center justify-center relative select-none">
-                        {/* Inner accent frame border */}
-                        <div className="absolute inset-[4%] border border-white/5 rounded pointer-events-none" />
-                        <span className="text-[#f5f5f7] font-black uppercase select-none truncate px-1 text-center text-[7px] md:text-[10px] tracking-wider leading-none">
-                          {(showroomConfig.dealerName || "AUTOFLOW").toUpperCase()}
-                        </span>
-                      </div>
-                      
-                      {/* Resize Handle (bottom-right corner) */}
-                      <div
-                        onMouseDown={(e) => {
-                          e.stopPropagation()
-                          e.preventDefault()
-                          setIsResizingPlate(true)
-                        }}
-                        onTouchStart={(e) => {
-                          e.stopPropagation()
-                          e.preventDefault()
-                          setIsResizingPlate(true)
-                        }}
-                        className="absolute right-0 bottom-0 w-3.5 h-3.5 bg-amber-400 rounded-bl cursor-se-resize flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                        style={{ zIndex: 21 }}
-                      />
-                    </div>
-                  )}
-
-                  {/* Before (clipped left side) */}
-                  <div
-                    className="absolute inset-0 overflow-hidden pointer-events-none"
-                    style={{ clipPath: `polygon(0 0, ${sliderPos}% 0, ${sliderPos}% 100%, 0 100%)`, zIndex: 12 }}
-                  >
-                    <img src={uploadedImage!} alt="Before" className="absolute inset-0 w-full h-full object-cover" />
-                    <span className="absolute left-3 top-3 bg-black/70 text-white text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg">
-                      Orijinal
-                    </span>
-                  </div>
-
-                  {/* Divider bar */}
-                  <div className="absolute inset-y-0 pointer-events-none" style={{ left: `${sliderPos}%` }}>
-                    <div className="w-0.5 h-full bg-white opacity-80" />
-                    <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-9 h-9 rounded-full bg-white shadow-2xl flex items-center justify-center border-2 border-af-border text-af-bg font-black text-sm">
-                      ↔
-                    </div>
-                  </div>
-                </div>
-
-                 {/* Renk Info */}
-                 <div
-                   className={cn("rounded-xl p-3 flex items-center gap-3 border border-white/10", `bg-gradient-to-r ${detectedColor.cssGradient}`)}
-                 >
-                   <div className="w-8 h-8 rounded-lg border border-white/20 flex-shrink-0" style={{ backgroundColor: detectedColor.hex }} />
-                   <div className="flex-1 min-w-0">
-                     <p className="text-xs font-bold text-white">{showroomConfig?.studioDesc || detectedColor.studioDesc}</p>
-                     <p className="text-[10px] text-white/50 truncate">{showroomConfig?.lighting || detectedColor.lighting}</p>
-                   </div>
-                 </div>
-
-                {/* Revize Et Butonu */}
-                <button
-                  onClick={handleRevisePromptMode}
-                  className="w-full flex items-center justify-center gap-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold py-3.5 rounded-xl transition-all hover:shadow-lg hover:shadow-amber-500/25 text-sm mb-3"
-                >
-                  <Sparkles className="w-4 h-4" /> Revize Et (Yazı ile Düzenle)
-                </button>
-
-                {/* İndirme / Yeni */}
-                <div className="grid grid-cols-3 gap-3">
-                  <button
-                    onClick={() => {
-                      setEnhanceSuccess(false)
-                      setUploadedImage(null)
-                      setDetectedColor(null)
-                      setShowroomConfig(null)
-                      setColorSwatchVisible(false)
-                      setRevisionMode(false)
-                      if (transparentCarUrlState) {
-                        URL.revokeObjectURL(transparentCarUrlState)
-                        setTransparentCarUrlState(null)
-                      }
-                    }}
-                    className="col-span-1 border border-af-border hover:bg-af-surface-2 text-af-text-secondary hover:text-white font-semibold py-3 rounded-xl transition-colors text-sm"
-                  >
-                    Yeni Görsel
-                  </button>
-                  <button
-                    onClick={handleDownload}
-                    className="col-span-1 bg-af-surface border border-af-border hover:border-af-accent/40 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-sm"
-                  >
-                    <Download className="w-4 h-4" /> İndir
-                  </button>
-                  <button
-                    onClick={() => addAiMsg("✅ AI stüdyo görseli ilan kataloğunuza kaydedildi! 🎉")}
-                    className="col-span-1 bg-af-accent hover:bg-af-accent-hover text-white font-bold py-3 rounded-xl transition-all hover:shadow-xl hover:shadow-af-accent/25 flex items-center justify-center gap-2 text-sm"
-                  >
-                    <Check className="w-4 h-4" /> İlana Ekle
-                  </button>
-                </div>
-              </div>
-            )}
-
-          </div>
         </div>
 
       </main>
