@@ -88,7 +88,14 @@ export function AracDetayClient({ arac, galeri }: AracDetayClientProps) {
         }),
       })
 
-      const data = await response.json()
+      const responseText = await response.text()
+      let data: any
+      try {
+        data = JSON.parse(responseText)
+      } catch (parseErr) {
+        throw new Error(`Sunucudan geçersiz yanıt geldi (HTML/Hata sayfası). Kod: ${response.status}. Detay: ${responseText.slice(0, 100)}...`)
+      }
+
       if (data.reply) {
         setChatMessages((prev) => [...prev, { sender: "ai", text: data.reply }])
       } else {
