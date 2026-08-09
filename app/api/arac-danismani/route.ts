@@ -74,8 +74,8 @@ ${(arac.ozellikler || []).length > 0 ? (arac.ozellikler || []).map((o: string) =
 6. Müşteriye "siz" diye hitap et.`
 
     // Gemini API Geçmiş Formatlama (roles: user, model)
-    const rawHistory = (history || []).map((m: { role: string; text: string }) => ({
-      role: m.role === "ai" ? "model" : "user",
+    const rawHistory = (history || []).map((m: { sender: string; text: string }) => ({
+      role: m.sender === "ai" ? "model" : "user",
       parts: [{ text: m.text }]
     }))
 
@@ -110,6 +110,7 @@ ${(arac.ozellikler || []).length > 0 ? (arac.ozellikler || []).map((o: string) =
             headers: {
               "Content-Type": "application/json",
             },
+            signal: AbortSignal.timeout(10000), // 10-second timeout to prevent hangs
             body: JSON.stringify({
               contents: contents,
               systemInstruction: {

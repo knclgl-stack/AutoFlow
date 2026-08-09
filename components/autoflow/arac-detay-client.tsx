@@ -94,14 +94,14 @@ export function AracDetayClient({ arac, galeri }: AracDetayClientProps) {
       } else {
         setChatMessages((prev) => [
           ...prev,
-          { sender: "ai", text: "Özür dilerim, bir hata oluştu. Lütfen tekrar deneyiniz." },
+          { sender: "ai", text: `İşlem Başarısız: ${data.error || "Bilinmeyen bir hata oluştu."}` },
         ])
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Chat error:", error)
       setChatMessages((prev) => [
         ...prev,
-        { sender: "ai", text: "Bağlantı hatası. Lütfen internetinizi kontrol edip tekrar deneyin." },
+        { sender: "ai", text: `Bağlantı Hatası: ${error?.message || "İnternet bağlantınızı kontrol edip tekrar deneyin."}` },
       ])
     } finally {
       setChatLoading(false)
