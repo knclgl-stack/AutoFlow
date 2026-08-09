@@ -100,7 +100,7 @@ ${(arac.ozellikler || []).length > 0 ? (arac.ozellikler || []).map((o: string) =
     let lastErrorMsg = ""
     
     // Sırasıyla modellere istek at
-    const modelsToTry = ["gemini-2.0-flash", "gemini-flash-latest"]
+    const modelsToTry = ["gemini-3.5-flash", "gemini-3.6-flash", "gemini-flash-latest", "gemini-2.0-flash"]
 
     for (const modelName of modelsToTry) {
       try {
