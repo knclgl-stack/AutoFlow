@@ -62,6 +62,9 @@ interface ShowroomConfig {
   plateWPercent?: number
   plateHPercent?: number
   carColorEn?: string
+  shadowOpacity?: number
+  shadowOffsetY?: number
+  shadowScaleX?: number
 }
 
 /* ─────────────────────────────────────────────
@@ -596,23 +599,10 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
       ctx.fillStyle = cycGrad
       ctx.fillRect(0, horizonY - H * 0.08, W, H * 0.16)
       ctx.restore()
-
-      // B. Soft background wall occlusion shadow (grounds the car relative to the wall, removing the floating/touching wall effect)
-      ctx.save()
-      ctx.filter = "blur(35px)"
-      ctx.fillStyle = "rgba(0, 0, 0, 0.22)"
-      ctx.beginPath()
-      ctx.ellipse(
-        W / 2,
-        horizonY - H * 0.02, // slightly above horizon
-        carWidthReal * 0.52, // wide enough to cover car
-        H * 0.10,            // vertical shadow spread on the wall
-        0,
-        0,
-        Math.PI * 2
-      )
-      ctx.fill()
-      ctx.restore()
+      // Get dynamic shadow attributes set by AI or default values
+      const shOpacity = config.shadowOpacity !== undefined ? config.shadowOpacity : 0.60
+      const shOffsetY = config.shadowOffsetY !== undefined ? config.shadowOffsetY : 0
+      const shScaleX = config.shadowScaleX !== undefined ? config.shadowScaleX : 1.0
 
       // Draw volumetric spotlight cone (aligned with scaled car center)
       if (config.showSpotlight) {
@@ -634,6 +624,12 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
         ctx.fill()
         ctx.restore()
       }
+
+      // Draw floor-contact elements (reflection, shadows) CLIPPED strictly to the floor area (prevents bleeding onto the wall)
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(0, horizonY, W, H - horizonY)
+      ctx.clip()
 
       // 7. Floor Reflection (flipped car) - Soft blurred glossy reflection! (Aligned with scaled car)
       if (config.reflectionOpacity > 0) {
@@ -674,17 +670,17 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
       
       // Layer A: Soft, wide ambient occlusion shadow (simulates blocking general room light)
       const softAmbientShadow = ctx.createRadialGradient(
-        W / 2, targetTireY - 2, 0,
-        W / 2, targetTireY - 2, carWidthReal * 0.58
+        W / 2, targetTireY - 2 + shOffsetY, 0,
+        W / 2, targetTireY - 2 + shOffsetY, carWidthReal * 0.58 * shScaleX
       )
-      softAmbientShadow.addColorStop(0, "rgba(0, 0, 0, 0.60)")
-      softAmbientShadow.addColorStop(0.4, "rgba(0, 0, 0, 0.30)")
-      softAmbientShadow.addColorStop(0.8, "rgba(0, 0, 0, 0.08)")
+      softAmbientShadow.addColorStop(0, `rgba(0, 0, 0, ${shOpacity})`)
+      softAmbientShadow.addColorStop(0.4, `rgba(0, 0, 0, ${shOpacity * 0.5})`)
+      softAmbientShadow.addColorStop(0.8, `rgba(0, 0, 0, ${shOpacity * 0.12})`)
       softAmbientShadow.addColorStop(1, "rgba(0, 0, 0, 0)")
 
       ctx.save()
-      ctx.translate(W / 2, targetTireY)
-      ctx.scale(1.15, 0.075)
+      ctx.translate(W / 2, targetTireY + shOffsetY)
+      ctx.scale(1.15 * shScaleX, 0.075)
       ctx.fillStyle = softAmbientShadow
       ctx.beginPath()
       ctx.arc(0, 0, carWidthReal * 0.58, 0, Math.PI * 2)
@@ -693,17 +689,17 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
 
       // Layer B: Main chassis block shadow (darker, flatter shadow directly under the car length)
       const chassisShadow = ctx.createRadialGradient(
-        W / 2, targetTireY, 0,
-        W / 2, targetTireY, carWidthReal * 0.46
+        W / 2, targetTireY + shOffsetY, 0,
+        W / 2, targetTireY + shOffsetY, carWidthReal * 0.46 * shScaleX
       )
-      chassisShadow.addColorStop(0, "rgba(0, 0, 0, 0.85)")
-      chassisShadow.addColorStop(0.5, "rgba(0, 0, 0, 0.55)")
-      chassisShadow.addColorStop(0.8, "rgba(0, 0, 0, 0.15)")
+      chassisShadow.addColorStop(0, `rgba(0, 0, 0, ${shOpacity * 1.4})`)
+      chassisShadow.addColorStop(0.5, `rgba(0, 0, 0, ${shOpacity * 0.9})`)
+      chassisShadow.addColorStop(0.8, `rgba(0, 0, 0, ${shOpacity * 0.25})`)
       chassisShadow.addColorStop(1, "rgba(0, 0, 0, 0)")
 
       ctx.save()
-      ctx.translate(W / 2, targetTireY)
-      ctx.scale(1.22, 0.038) // slightly longer and flatter than ambient
+      ctx.translate(W / 2, targetTireY + shOffsetY)
+      ctx.scale(1.22 * shScaleX, 0.038) // slightly longer and flatter than ambient
       ctx.fillStyle = chassisShadow
       ctx.beginPath()
       ctx.arc(0, 0, carWidthReal * 0.46, 0, Math.PI * 2)
@@ -711,7 +707,6 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
       ctx.restore()
 
       // Layer C: Tire Footprint Contact Shadows (very dark, small ellipses directly under the tires)
-      // Most cars have wheels located at ~26% from left and right edges of the car body.
       const wheelXPositions = [
         W / 2 - carWidthReal * 0.28, // Left wheel region
         W / 2 + carWidthReal * 0.28  // Right wheel region
@@ -719,16 +714,16 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
       
       wheelXPositions.forEach((wheelX) => {
         const tireShadow = ctx.createRadialGradient(
-          wheelX, targetTireY, 0,
-          wheelX, targetTireY, carWidthReal * 0.10
+          wheelX, targetTireY + shOffsetY, 0,
+          wheelX, targetTireY + shOffsetY, carWidthReal * 0.10
         )
-        tireShadow.addColorStop(0, "rgba(0, 0, 0, 0.95)")
-        tireShadow.addColorStop(0.25, "rgba(0, 0, 0, 0.85)")
-        tireShadow.addColorStop(0.6, "rgba(0, 0, 0, 0.4)")
+        tireShadow.addColorStop(0, `rgba(0, 0, 0, ${shOpacity * 1.5})`)
+        tireShadow.addColorStop(0.25, `rgba(0, 0, 0, ${shOpacity * 1.3})`)
+        tireShadow.addColorStop(0.6, `rgba(0, 0, 0, ${shOpacity * 0.6})`)
         tireShadow.addColorStop(1, "rgba(0, 0, 0, 0)")
 
         ctx.save()
-        ctx.translate(wheelX, targetTireY)
+        ctx.translate(wheelX, targetTireY + shOffsetY)
         ctx.scale(1.0, 0.045) // Squashed to match the tire's ground contact patch
         ctx.fillStyle = tireShadow
         ctx.beginPath()
@@ -737,6 +732,7 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
         ctx.restore()
       })
 
+      ctx.restore() // Close floor clip
       // 8.5 Subtle Edge Softener / Anti-Aliasing (reduces pixelated background-removal artifacts)
       ctx.save()
       ctx.filter = "blur(1px)"
@@ -933,7 +929,10 @@ function makeDefaultConfig(colorProfile: CarColor, dealerName?: string, dealerLo
     dealerName: dealerName || "AUTOFLOW",
     dealerLogoUrl: dealerLogoUrl || undefined,
     carScale: 0.70,
-    carColorEn: colorProfile.nameEn
+    carColorEn: colorProfile.nameEn,
+    shadowOpacity: 0.60,
+    shadowOffsetY: 0,
+    shadowScaleX: 1.0
   }
 }
 
@@ -1250,7 +1249,6 @@ export default function FlowAiPage() {
         try {
           const mimeType = downsizedImageBase64.split(";")[0].split(":")[1]
           const base64Data = downsizedImageBase64.split(",")[1]
-
           const aiPrompt = `Sen profesyonel bir stüdyo fotoğrafçılığı ve araba aydınlatma uzmanı olan Flow AI'sın.
 Sana gönderilen araç görselini analiz et. 
 Aracın rengini ve kameraya göre çekiş açısını (örneğin: ön-çapraz 3/4, tam yan profil, düz ön, arka-çapraz) belirle.
@@ -1263,7 +1261,9 @@ Kurallar:
    - Araç ön-çapraz 3/4 veya düz ön ise tepe spotlight'ını geniş tut (spotlightWidth: 0.95), zemin yansımasını (reflectionOpacity) 0.20-0.25 arası yap.
    - Araç tam yan profil ise zemin yansımasını daha ayna gibi yap (reflectionOpacity: 0.35), neon şeritleri açarak araca derinlik kat (showNeonStrips: true).
    - Çekim açısını düşünerek ışık panellerini (leftPanelColor, rightPanelColor) ve bunların yansıma yoğunluğunu (lightPanelOpacity) ayarla.
-3. Çıktı sadece aşağıdaki JSON formatında olmalı, başka hiçbir açıklama veya markdown bloğu içermemelidir:
+3. GÖLGELER VE FİZİKSEL UYUMLULUK:
+   - Işığın geliş yönünü düşünerek gölge opaklığını (shadowOpacity: 0.4 ile 0.9 arası), gölge dikey kaymasını (shadowOffsetY: -8 ile 12 arası piksel) ve gölge yatay genişliğini (shadowScaleX: 0.8 ile 1.3 arası) hassas şekilde ayarla. Bu sayede gölgelerin araba tekerlekleriyle kusursuz birleşmesini sağla.
+4. Çıktı sadece aşağıdaki JSON formatında olmalı, başka hiçbir açıklama veya markdown bloğu içermemelidir:
 {
   "bg": "duvar rengi hex kodu",
   "floorColor": "zemin rengi hex kodu",
@@ -1281,8 +1281,11 @@ Kurallar:
   "lightPanelOpacity": 0.15,
   "name": "temaya uygun kısa renk adı",
   "studioDesc": "oluşturulan yeni stüdyo stilinin adı",
-  "lighting": "aracın rengine ve açısına göre yapılmış özel ışık tasarımı açıklaması (örn: 'Mercedes-Benz ön-çapraz açısına uygun yumuşak softbox ve rim aydınlatması')",
-  "carScale": 0.70
+  "lighting": "aracın rengine ve açısına göre yapılmış özel ışık tasarımı açıklaması (örn: 'Mercedes-Benz ön-çapraz açısına uygun yumuşak softbox')",
+  "carScale": 0.70,
+  "shadowOpacity": 0.60,
+  "shadowOffsetY": 0,
+  "shadowScaleX": 1.0
 }`
 
           const res = await fetch("/api/flow-ai", {
@@ -1329,7 +1332,10 @@ Kurallar:
                 name: parsed.name || "AI Özel",
                 studioDesc: parsed.studioDesc,
                 lighting: parsed.lighting || "AI Işık Tasarımı",
-                carScale: typeof parsed.carScale === "number" ? parsed.carScale : 0.70
+                carScale: typeof parsed.carScale === "number" ? parsed.carScale : 0.70,
+                shadowOpacity: typeof parsed.shadowOpacity === "number" ? parsed.shadowOpacity : 0.60,
+                shadowOffsetY: typeof parsed.shadowOffsetY === "number" ? parsed.shadowOffsetY : 0,
+                shadowScaleX: typeof parsed.shadowScaleX === "number" ? parsed.shadowScaleX : 1.0
               }
               setShowroomConfig(finalConfig)
             }
@@ -1522,7 +1528,10 @@ JSON Formatı:
         lighting: parsed.lighting || "Özelleştirilmiş showroom aydınlatması",
         dealerName: showroomConfig?.dealerName,
         dealerLogoUrl: showroomConfig?.dealerLogoUrl,
-        carScale: typeof parsed.carScale === "number" ? parsed.carScale : (showroomConfig?.carScale || 0.70)
+        carScale: typeof parsed.carScale === "number" ? parsed.carScale : (showroomConfig?.carScale || 0.70),
+        shadowOpacity: typeof parsed.shadowOpacity === "number" ? parsed.shadowOpacity : (showroomConfig?.shadowOpacity || 0.60),
+        shadowOffsetY: typeof parsed.shadowOffsetY === "number" ? parsed.shadowOffsetY : (showroomConfig?.shadowOffsetY || 0),
+        shadowScaleX: typeof parsed.shadowScaleX === "number" ? parsed.shadowScaleX : (showroomConfig?.shadowScaleX || 1.0)
       }
 
       setProcessingStep(85)
