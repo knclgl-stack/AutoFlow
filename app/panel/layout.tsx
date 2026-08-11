@@ -1,6 +1,12 @@
 import { redirect } from "next/navigation"
+import type { Metadata } from "next"
 import { createClient } from "@/lib/supabase/server"
 import { PanelSidebar } from "@/components/panel/panel-sidebar"
+
+export const metadata: Metadata = {
+  title: "Yönetim Paneli",
+  robots: { index: false, follow: false },
+}
 
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -20,4 +26,3 @@ export default async function PanelLayout({ children }: { children: React.ReactN
     </div>
   )
 }
-

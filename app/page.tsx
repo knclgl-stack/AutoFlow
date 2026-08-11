@@ -3,7 +3,9 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { AfLogo } from "@/components/autoflow/af-logo"
+import { JsonLd } from "@/components/seo/json-ld"
 import { useAuth } from "@/lib/auth-context"
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site"
 import {
   QrCode, BarChart3, MessageCircle, ArrowRight, LogOut,
   CheckCircle, ChevronRight, Clock, Shield,
@@ -109,6 +111,53 @@ const SSS = [
   { soru: "Ücretli plana geçmeden deneyebilir miyim?", cevap: "Evet. Ücretsiz Essentials planında 3 araç ekleyebilir, QR kodları oluşturabilir, galeri sayfanızı kullanabilirsiniz. Kredi kartı bilgisi istenmez." },
 ]
 
+const LANDING_PAGE_JSON_LD = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": `${SITE_URL}/#organization`,
+      name: SITE_NAME,
+      url: SITE_URL,
+      logo: `${SITE_URL}/autoflow-logo.png`,
+      email: "mailto:knclgl@gmail.com",
+    },
+    {
+      "@type": "WebSite",
+      "@id": `${SITE_URL}/#website`,
+      name: SITE_NAME,
+      url: SITE_URL,
+      inLanguage: "tr-TR",
+      description: SITE_DESCRIPTION,
+      publisher: { "@id": `${SITE_URL}/#organization` },
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": `${SITE_URL}/#software`,
+      name: SITE_NAME,
+      url: SITE_URL,
+      description: SITE_DESCRIPTION,
+      applicationCategory: "BusinessApplication",
+      operatingSystem: "Web",
+      inLanguage: "tr-TR",
+      provider: { "@id": `${SITE_URL}/#organization` },
+      offers: [
+        { "@type": "Offer", name: "Essentials", price: 0, priceCurrency: "TRY" },
+        { "@type": "Offer", name: "Professional", price: 2990, priceCurrency: "TRY" },
+        { "@type": "Offer", name: "Elite", price: 4990, priceCurrency: "TRY" },
+      ],
+    },
+    {
+      "@type": "FAQPage",
+      mainEntity: SSS.map(({ soru, cevap }) => ({
+        "@type": "Question",
+        name: soru,
+        acceptedAnswer: { "@type": "Answer", text: cevap },
+      })),
+    },
+  ],
+}
+
 /* SSS Item */
 function SSSItem({ soru, cevap }: { soru: string; cevap: string }) {
   const [acik, setAcik] = useState(false)
@@ -148,6 +197,7 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-af-bg text-af-text overflow-x-hidden">
+      <JsonLd data={LANDING_PAGE_JSON_LD} />
 
       {/* ══════════════════════ NAVBAR ══════════════════════ */}
       <nav className={cn(

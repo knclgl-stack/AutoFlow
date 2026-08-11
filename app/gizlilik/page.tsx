@@ -1,6 +1,13 @@
 import Link from "next/link"
+import type { Metadata } from "next"
 import { AfLogo } from "@/components/autoflow/af-logo"
 import { ShieldCheck, ArrowLeft } from "lucide-react"
+
+export const metadata: Metadata = {
+  title: "Gizlilik Politikası ve KVKK Aydınlatma Metni",
+  description: "AutoFlow gizlilik politikası, kişisel verilerin işlenmesi ve KVKK kapsamındaki haklarınız.",
+  alternates: { canonical: "/gizlilik" },
+}
 
 export default function GizlilikPage() {
   return (
