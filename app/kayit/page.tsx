@@ -57,6 +57,7 @@ export default function KayitPage() {
   const [yukleniyor, setYukleniyor] = useState(false)
   const [hata, setHata] = useState("")
   const [basarili, setBasarili] = useState(false)
+  const [dogrulamaGerekli, setDogrulamaGerekli] = useState(false)
 
   const sifreGuclu = form.sifre.length >= 8
   const sifreEslesmiyor = form.sifreTekrar && form.sifre !== form.sifreTekrar
@@ -125,14 +126,22 @@ export default function KayitPage() {
     setHata("")
     setYukleniyor(true)
 
-    // 1. Supabase Auth Signup
+    const slugBase = galeriSlugOlustur(form.galeriAdi) || "galeri"
+
+    // Profil, auth.users tetikleyicisi tarafından güvenli biçimde oluşturulur.
     const { data, error } = await supabase.auth.signUp({
       email: form.email,
       password: form.sifre,
       options: {
+        emailRedirectTo: `${window.location.origin}/giris?verified=1`,
         data: {
           ad_soyad: form.adSoyad,
           galeri_adi: form.galeriAdi,
+          galeri_slug: slugBase,
+          adres: form.galeriAdresi,
+          telefon: form.telefon,
+          calisma_hafta_ici: form.calismaHaftaIci,
+          calisma_hafta_sonu: form.calismaHaftaSonu,
         },
       },
     })
@@ -146,70 +155,35 @@ export default function KayitPage() {
       return
     }
 
-    // 2. galeri_profilleri tablosuna kaydet
-    if (data.user) {
-      let slug = `galeri-${Math.random().toString(36).substring(2, 8)}`
-      
-      const { data: checkData } = await supabase
-        .from("galeri_profilleri")
-        .select("user_id")
-        .eq("slug", slug)
+    // E-posta doğrulaması kapalıysa oturum hemen oluşur ve logo yüklenebilir.
+    // Doğrulama açıksa logo daha sonra Ayarlar ekranından eklenebilir.
+    if (data.user && data.session && form.logoUrl.startsWith("data:")) {
+      try {
+        const response = await fetch(form.logoUrl)
+        const blob = await response.blob()
+        const fileName = `${data.user.id}/logos/logo-${Date.now()}.jpg`
+        const { error: uploadError } = await supabase.storage
+          .from("araclar")
+          .upload(fileName, blob, { contentType: "image/jpeg", upsert: false })
 
-      if (checkData && checkData.length > 0) {
-        slug = `galeri-${Math.random().toString(36).substring(2, 8)}`
-      }
-
-      // Base64 logo varsa önce Storage'a yüklemeyi dene
-      let finalLogoUrl = form.logoUrl
-      if (form.logoUrl && form.logoUrl.startsWith("data:")) {
-        try {
-          const fileExt = "jpg"
-          const fileName = `${data.user.id}/logo-${Date.now()}.${fileExt}`
-          const res = await fetch(form.logoUrl)
-          const blob = await res.blob()
-          
-          const { error: uploadErr } = await supabase.storage
-            .from("araclar")
-            .upload(fileName, blob, { contentType: "image/jpeg" })
-          
-          if (!uploadErr) {
-            const { data: { publicUrl } } = supabase.storage
-              .from("araclar")
-              .getPublicUrl(fileName)
-            finalLogoUrl = publicUrl
-          }
-        } catch (err) {
-          console.warn("Storage upload fallback", err)
+        if (!uploadError) {
+          const { data: { publicUrl } } = supabase.storage.from("araclar").getPublicUrl(fileName)
+          await supabase
+            .from("galeri_profilleri")
+            .update({ logo_url: publicUrl })
+            .eq("user_id", data.user.id)
         }
-      }
-
-      const { error: profileError } = await supabase
-        .from("galeri_profilleri")
-        .insert({
-          user_id: data.user.id,
-          galeri_adi: form.galeriAdi,
-          logo_url: finalLogoUrl,
-          slug: slug,
-          plan: "Essential",
-          adres: form.galeriAdresi,
-          telefon: form.telefon,
-          calisma_saatleri: {
-            hafta_ici: form.calismaHaftaIci,
-            hafta_sonu: form.calismaHaftaSonu,
-          }
-        })
-
-      if (profileError) {
-        console.error("Galeri profili oluşturulamadı:", profileError)
-        setHata("Hesap oluşturuldu fakat galeri profili kaydedilemedi: " + profileError.message)
-        setYukleniyor(false)
-        return
+      } catch (logoError) {
+        console.warn("Logo kayıt sırasında yüklenemedi:", logoError)
       }
     }
 
+    setDogrulamaGerekli(!data.session)
     setBasarili(true)
     setYukleniyor(false)
-    setTimeout(() => { window.location.href = "/panel" }, 2000)
+    if (data.session) {
+      setTimeout(() => { window.location.href = "/panel" }, 2000)
+    }
   }
 
   if (basarili) {
@@ -221,8 +195,15 @@ export default function KayitPage() {
           </div>
           <h2 className="text-2xl font-black text-af-text mb-2">Hoş Geldiniz!</h2>
           <p className="text-af-text-secondary text-sm">
-            Hesabınız ve galeriniz başarıyla kuruldu. Panele yönlendiriliyorsunuz...
+            {dogrulamaGerekli
+              ? "Hesabınız oluşturuldu. Giriş yapmadan önce e-posta adresinize gönderilen doğrulama bağlantısına tıklayın. Logonuzu giriş yaptıktan sonra Ayarlar ekranından ekleyebilirsiniz."
+              : "Hesabınız ve galeriniz başarıyla kuruldu. Panele yönlendiriliyorsunuz..."}
           </p>
+          {dogrulamaGerekli && (
+            <Link href="/giris" className="mt-6 inline-flex rounded-xl bg-af-accent px-5 py-3 text-sm font-bold text-white">
+              Giriş Sayfasına Git
+            </Link>
+          )}
         </div>
       </div>
     )

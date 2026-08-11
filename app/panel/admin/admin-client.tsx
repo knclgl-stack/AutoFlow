@@ -209,15 +209,10 @@ export function AdminClient({
     const file = e.target.files[0]
     try {
       const compressedBase64 = await compressImage(file)
-      let uploadedUrl: string | null = null
-      try {
-        const blob = dataURLtoBlob(compressedBase64)
-        const compressedFile = new File([blob], file.name, { type: "image/jpeg" })
-        uploadedUrl = await uploadGalleryLogo(compressedFile, duzenlenenGaleri.user_id)
-      } catch (storageErr) {
-        console.warn("Logo storage upload failed, fallback to base64", storageErr)
-      }
-      setDuzenlenenGaleri({ ...duzenlenenGaleri, logo_url: uploadedUrl || compressedBase64 })
+      const blob = dataURLtoBlob(compressedBase64)
+      const compressedFile = new File([blob], file.name, { type: "image/jpeg" })
+      const uploadedUrl = await uploadGalleryLogo(compressedFile, duzenlenenGaleri.user_id)
+      setDuzenlenenGaleri({ ...duzenlenenGaleri, logo_url: uploadedUrl })
     } catch (err) {
       console.error(err)
       alert("Logo yüklenirken hata oluştu.")
@@ -238,16 +233,10 @@ export function AdminClient({
         const file = files[i]
         const compressedBase64 = await compressImage(file)
         
-        let uploadedUrl: string | null = null
-        try {
-          const blob = dataURLtoBlob(compressedBase64)
-          const compressedFile = new File([blob], file.name, { type: "image/jpeg" })
-          uploadedUrl = await uploadToSupabase(compressedFile, duzenlenenArac.user_id)
-        } catch (storageErr) {
-          console.warn("Storage upload failed, fallback to base64", storageErr)
-        }
-
-        newUrls.push(uploadedUrl || compressedBase64)
+        const blob = dataURLtoBlob(compressedBase64)
+        const compressedFile = new File([blob], file.name, { type: "image/jpeg" })
+        const uploadedUrl = await uploadToSupabase(compressedFile, duzenlenenArac.user_id)
+        newUrls.push(uploadedUrl)
       }
       
       const currentFotos = duzenlenenArac.fotograflar || []
@@ -440,16 +429,12 @@ export function AdminClient({
     setMesaj(null)
 
     try {
-      const { data, error } = await supabase
-        .from("galeri_profilleri")
-        .update({ plan: newPlan })
-        .eq("user_id", userId)
-        .select()
+      const { error } = await supabase.rpc("admin_set_gallery_plan", {
+        p_user_id: userId,
+        p_plan: newPlan,
+      })
 
       if (error) throw error
-      if (!data || data.length === 0) {
-        throw new Error("Abonelik planı güncellenemedi. RLS politikaları engellemiş olabilir veya bu galeriyi güncelleme yetkiniz yok.")
-      }
 
       setGalleries(prev => prev.map(g => g.user_id === userId ? { ...g, plan: newPlan } : g))
       setMesaj({ tip: "basarili", metin: `Abonelik planı başarıyla "${newPlan}" olarak güncellendi.` })
@@ -901,7 +886,7 @@ export function AdminClient({
                   ) : (
                     filtrelenmişAraclar.map((arac) => {
                       const isSelf = islemde === arac.id
-                      const coverFoto = arac.fotograflar?.[0] || "/placeholder-car.png"
+                      const coverFoto = arac.fotograflar?.[0] || "/placeholder.jpg"
 
                       return (
                         <tr key={arac.id} className="hover:bg-af-surface-2/10 transition-colors">

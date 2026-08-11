@@ -238,21 +238,15 @@ export default function DuzenleAracPage({ params }: PageProps) {
         const file = files[i]
         const compressedBase64 = await compressImage(file)
         
-        let uploadedUrl: string | null = null
-        try {
-          const blob = dataURLtoBlob(compressedBase64)
-          const compressedFile = new File([blob], file.name, { type: "image/jpeg" })
-          uploadedUrl = await uploadToSupabase(compressedFile, user.id)
-        } catch (storageErr) {
-          console.warn("Storage upload failed, fallback to base64", storageErr)
-        }
-
-        newUrls.push(uploadedUrl || compressedBase64)
+        const blob = dataURLtoBlob(compressedBase64)
+        const compressedFile = new File([blob], file.name, { type: "image/jpeg" })
+        const uploadedUrl = await uploadToSupabase(compressedFile, user.id)
+        newUrls.push(uploadedUrl)
       }
       setForm((prev) => ({ ...prev, foto_urls: [...prev.foto_urls, ...newUrls] }))
     } catch (err: any) {
       console.error(err)
-      setHata("Görseller işlenirken hata oluştu.")
+      setHata("Görseller Storage alanına yüklenemedi. Lütfen tekrar deneyin.")
     } finally {
       setUploading(false)
     }

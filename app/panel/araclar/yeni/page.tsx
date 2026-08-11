@@ -169,21 +169,10 @@ export default function YeniAracPage() {
         // Compress the image client-side to keep size small (~80KB)
         const compressedBase64 = await compressImage(file)
         
-        // Try uploading to Supabase Storage if possible
-        let uploadedUrl: string | null = null
-        try {
-          const blob = dataURLtoBlob(compressedBase64)
-          const compressedFile = new File([blob], file.name, { type: "image/jpeg" })
-          uploadedUrl = await uploadToSupabase(compressedFile, user.id)
-        } catch (storageErr) {
-          console.warn("Storage upload process error, falling back to base64:", storageErr)
-        }
-
-        if (uploadedUrl) {
-          newUrls.push(uploadedUrl)
-        } else {
-          newUrls.push(compressedBase64)
-        }
+        const blob = dataURLtoBlob(compressedBase64)
+        const compressedFile = new File([blob], file.name, { type: "image/jpeg" })
+        const uploadedUrl = await uploadToSupabase(compressedFile, user.id)
+        newUrls.push(uploadedUrl)
       }
 
       if (newUrls.length > 0) {
@@ -254,32 +243,23 @@ export default function YeniAracPage() {
     })
   }
 
-  const uploadToSupabase = async (file: File, userId: string): Promise<string | null> => {
-    try {
-      const fileExt = file.name.split('.').pop() || 'jpg'
-      const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`
-      
-      const { data, error } = await supabase.storage
-        .from('araclar')
-        .upload(fileName, file, {
-          cacheControl: '31536000',
-          upsert: false
-        })
+  const uploadToSupabase = async (file: File, userId: string): Promise<string> => {
+    const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).substring(2, 15)}.jpg`
+    const { error } = await supabase.storage
+      .from('araclar')
+      .upload(fileName, file, {
+        contentType: "image/jpeg",
+        cacheControl: '31536000',
+        upsert: false
+      })
 
-      if (error) {
-        console.warn("Storage upload failed (expected if bucket not setup):", error.message)
-        return null
-      }
+    if (error) throw error
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('araclar')
-        .getPublicUrl(fileName)
+    const { data: { publicUrl } } = supabase.storage
+      .from('araclar')
+      .getPublicUrl(fileName)
 
-      return publicUrl
-    } catch (err) {
-      console.warn("Storage upload error:", err)
-      return null
-    }
+    return publicUrl
   }
 
   const update = (key: keyof FormData, value: FormData[keyof FormData]) =>
@@ -379,7 +359,7 @@ export default function YeniAracPage() {
         tramer_kaydi: form.tramer_kaydi,
         tramer_detay: form.tramer_detay.map((t) => ({ yil: parseInt(t.yil), tutar: parseFloat(t.tutar) })),
         agir_hasar_kaydi: form.agir_hasar_kaydi,
-        fotograflar: form.foto_urls.length > 0 ? form.foto_urls : ["/placeholder-car.png"],
+        fotograflar: form.foto_urls.length > 0 ? form.foto_urls : ["/placeholder.jpg"],
         fiyat: form.fiyat ? parseFloat(form.fiyat) : null,
         fiyat_gizle: form.fiyat_gizle,
         pazarlik_var: form.pazarlik_var,

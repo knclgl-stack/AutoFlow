@@ -1,22 +1,78 @@
-import { GoogleGenerativeAI } from "@google/generative-ai"
+import { createHash } from "node:crypto"
 import { NextRequest, NextResponse } from "next/server"
+import { z } from "zod"
+import { createAdminClient } from "@/lib/supabase/admin"
+
+export const runtime = "nodejs"
+
+const AdvisorRequestSchema = z.object({
+  message: z.string().trim().min(1).max(1000),
+  history: z.array(z.object({
+    sender: z.enum(["user", "ai"]),
+    text: z.string().max(2000),
+  })).max(12).default([]),
+  aracId: z.string().uuid(),
+})
 
 export async function POST(req: NextRequest) {
   try {
-    const { message, history, arac, galeri } = await req.json()
+    const contentLength = Number(req.headers.get("content-length") || 0)
+    if (contentLength > 64_000) {
+      return NextResponse.json({ error: "İstek boyutu çok büyük." }, { status: 413 })
+    }
+
+    const parsed = AdvisorRequestSchema.safeParse(await req.json())
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Geçersiz danışman isteği." }, { status: 400 })
+    }
+
+    const { message, history, aracId } = parsed.data
 
     const key = process.env.GEMINI_API_KEY
 
     if (!key) {
       return NextResponse.json({
-        error: "Sistemde Gemini API anahtarı bulunamadı. Lütfen .env.local dosyasında GEMINI_API_KEY tanımlayın."
-      }, { status: 500 })
+        error: "AI danışman servisi henüz yapılandırılmamış."
+      }, { status: 503 })
     }
 
-    if (!arac || !galeri) {
-      return NextResponse.json({
-        error: "Eksik araç veya galeri verisi."
-      }, { status: 400 })
+    const admin = createAdminClient()
+    const [{ data: arac, error: vehicleError }, { data: quota, error: quotaError }] = await Promise.all([
+      admin.from("araclar_public").select("*").eq("id", aracId).maybeSingle(),
+      admin.rpc("consume_public_ai_quota", {
+        p_arac_id: aracId,
+        p_istemci_hash: getClientHash(req),
+      }),
+    ])
+
+    if (vehicleError || !arac) {
+      return NextResponse.json({ error: "Araç bulunamadı." }, { status: 404 })
+    }
+    if (quotaError) {
+      console.error("Advisor quota error:", quotaError.message)
+      return NextResponse.json({ error: "AI kotası kontrol edilemedi." }, { status: 503 })
+    }
+    if (!quota?.allowed) {
+      const errors: Record<string, string> = {
+        plan: "Bu galerinin planında AI araç danışmanı bulunmuyor.",
+        daily: "Bugünkü danışman kullanım sınırınıza ulaştınız.",
+        monthly: "Bu galerinin aylık AI danışman kotası doldu.",
+        vehicle: "Araç bulunamadı.",
+      }
+      return NextResponse.json(
+        { error: errors[quota?.reason] || "AI danışman şu anda kullanılamıyor." },
+        { status: quota?.reason === "plan" ? 403 : 429 }
+      )
+    }
+
+    const { data: galeri, error: galleryError } = await admin
+      .from("galeri_profilleri_public")
+      .select("*")
+      .eq("user_id", arac.user_id)
+      .maybeSingle()
+
+    if (galleryError || !galeri) {
+      return NextResponse.json({ error: "Galeri bulunamadı." }, { status: 404 })
     }
 
     // Tramer ve Boya Detaylarını Formatla
@@ -25,7 +81,7 @@ export async function POST(req: NextRequest) {
       : "Yok (Hasar kaydı bulunmamaktadır)"
     
     const boyaDurumu = (arac.boyali_parcalar || []).length > 0
-      ? `Boyalı/Değişen Parçalar: ${(arac.boyali_parcalar || []).join(", ")} (${arac.boyali_parce || arac.boyali_parca || 0} parça)`
+      ? `Boyalı/Değişen Parçalar: ${(arac.boyali_parcalar || []).join(", ")} (${arac.boyali_parca || 0} parça)`
       : "Boyalı veya değişen parçası yoktur (Tamamen Orijinal)"
 
     const agirHasar = arac.agir_hasar_kaydi ? "Ağır Hasarlı ⚠️ (Lütfen dürüstçe bilgi veriniz)" : "Ağır hasar kaydı yoktur ✅"
@@ -95,7 +151,6 @@ ${(arac.ozellikler || []).length > 0 ? (arac.ozellikler || []).map((o: string) =
       }
     ]
 
-    const genAI = new GoogleGenerativeAI(key)
     let replyText = ""
     let lastErrorMsg = ""
     
@@ -108,11 +163,12 @@ ${(arac.ozellikler || []).length > 0 ? (arac.ozellikler || []).map((o: string) =
         
         // 1. Google Arama Grounding ile dene
         let response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${key}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`,
           {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
+              "x-goog-api-key": key,
             },
             signal: AbortSignal.timeout(12000), // 12-second timeout to prevent hangs
             body: JSON.stringify({
@@ -144,11 +200,12 @@ ${(arac.ozellikler || []).length > 0 ? (arac.ozellikler || []).map((o: string) =
         )) {
           console.warn(`Gemini API search grounding failed, falling back to standard inference...`)
           response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${key}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`,
             {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
+                "x-goog-api-key": key,
               },
               signal: AbortSignal.timeout(10000),
               body: JSON.stringify({
@@ -184,14 +241,24 @@ ${(arac.ozellikler || []).length > 0 ? (arac.ozellikler || []).map((o: string) =
     }
 
     if (!replyText) {
-      return NextResponse.json({ 
-        error: `Yapay zeka servisine bağlanılamadı: ${lastErrorMsg}` 
-      }, { status: 500 })
+      console.error("Advisor AI models exhausted:", lastErrorMsg)
+      return NextResponse.json({ error: "Yapay zeka servisi şu anda yanıt vermiyor." }, { status: 502 })
     }
 
-    return NextResponse.json({ reply: replyText })
+    return NextResponse.json({ reply: replyText, quota })
   } catch (err: any) {
     console.error("Danışman AI API error:", err)
-    return NextResponse.json({ error: `Sunucu hatası: ${err?.message || "Bilinmeyen hata"}` }, { status: 500 })
+    return NextResponse.json({ error: "AI danışman servisine şu anda bağlanılamadı." }, { status: 500 })
   }
+}
+
+function getClientHash(req: NextRequest): string {
+  const forwardedFor = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+  const clientAddress = forwardedFor || req.headers.get("x-real-ip") || "unknown"
+  const userAgent = req.headers.get("user-agent") || "unknown"
+  const salt = process.env.RATE_LIMIT_SALT || "autoflow-public-advisor"
+
+  return createHash("sha256")
+    .update(`${clientAddress}|${userAgent}|${salt}`)
+    .digest("hex")
 }

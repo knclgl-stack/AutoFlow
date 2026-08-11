@@ -4,11 +4,19 @@ import { useState, useEffect } from "react"
 import { PanelTopbar } from "@/components/panel/panel-topbar"
 import {
   Check, Zap, Crown, Star, ChevronRight, CreditCard,
-  Car, Infinity, Receipt, Shield, Sparkles, X, AlertCircle
+  Car, Receipt, Shield, Sparkles, X, AlertCircle, Landmark, Clock3
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
 import { createClient } from "@/lib/supabase/client"
+import type { PlanTalebi } from "@/lib/types"
+import { normalizePlan } from "@/lib/plans"
+
+const HAVALE_ALICI = process.env.NEXT_PUBLIC_HAVALE_ALICI || "Alıcı tanımlanmadı"
+const HAVALE_IBAN = process.env.NEXT_PUBLIC_HAVALE_IBAN || "IBAN tanımlanmadı"
+const HAVALE_HAZIR = Boolean(
+  process.env.NEXT_PUBLIC_HAVALE_ALICI && process.env.NEXT_PUBLIC_HAVALE_IBAN
+)
 
 /* ─────────────────────────────────────────────
    PLAN TANIMLARI
@@ -29,7 +37,7 @@ const PLANLAR = [
     iconBg: "bg-af-surface-2",
     badge: null,
     ozellikler: [
-      { text: "3 aktif araç ilanı", aktif: true },
+      { text: "3 araç ilanı", aktif: true },
       { text: "Temel galeri profili sayfası", aktif: true },
       { text: "QR kod oluşturma", aktif: true },
       { text: "AutoFlow markası görünür", aktif: true },
@@ -37,7 +45,7 @@ const PLANLAR = [
       { text: "Gelişmiş analitik", aktif: false },
       { text: "Özel alan adı (slug)", aktif: false },
       { text: "Öncelikli destek", aktif: false },
-      { text: "Fatura ve muhasebe entegrasyonu", aktif: false },
+      { text: "E-posta destek", aktif: true },
     ]
   },
   {
@@ -55,15 +63,15 @@ const PLANLAR = [
     iconBg: "bg-af-accent/10",
     badge: "En Popüler",
     ozellikler: [
-      { text: "12 aktif araç ilanı", aktif: true },
+      { text: "12 araç ilanı", aktif: true },
       { text: "Profesyonel galeri profili sayfası", aktif: true },
       { text: "QR kod oluşturma", aktif: true },
       { text: "AutoFlow markası kaldırılır", aktif: true },
-      { text: "Flow AI Stüdyo (sınırsız ücretsiz)", aktif: true },
+      { text: "Flow AI Stüdyo (ayda 150 işlem)", aktif: true },
       { text: "Gelişmiş analitik ve raporlar", aktif: true },
       { text: "Özel alan adı (slug) seçimi", aktif: true },
       { text: "Öncelikli destek", aktif: false },
-      { text: "Fatura ve muhasebe entegrasyonu", aktif: false },
+      { text: "Havale ile güvenli plan yükseltme", aktif: true },
     ]
   },
   {
@@ -81,15 +89,15 @@ const PLANLAR = [
     iconBg: "bg-amber-500/10",
     badge: "Elit",
     ozellikler: [
-      { text: "Sınırsız aktif araç ilanı", aktif: true },
+      { text: "Sınırsız araç ilanı", aktif: true },
       { text: "Premium galeri profili sayfası", aktif: true },
       { text: "QR kod oluşturma", aktif: true },
       { text: "AutoFlow markası kaldırılır", aktif: true },
-      { text: "Flow AI Stüdyo (öncelikli işlem, sınırsız)", aktif: true },
+      { text: "Flow AI Stüdyo (ayda 500 işlem)", aktif: true },
       { text: "Gelişmiş analitik ve raporlar", aktif: true },
       { text: "Özel alan adı (slug) seçimi", aktif: true },
       { text: "7/24 öncelikli destek", aktif: true },
-      { text: "Fatura ve muhasebe entegrasyonu", aktif: true },
+      { text: "Havale ile güvenli plan yükseltme", aktif: true },
     ]
   }
 ]
@@ -105,6 +113,10 @@ export default function AbonelikPage() {
   const [onayModal, setOnayModal] = useState(false)
   const [basariModal, setBasariModal] = useState(false)
   const [yukleniyor, setYukleniyor] = useState(false)
+  const [bekleyenTalep, setBekleyenTalep] = useState<PlanTalebi | null>(null)
+  const [havaleReferansi, setHavaleReferansi] = useState("")
+  const [kullaniciNotu, setKullaniciNotu] = useState("")
+  const [hata, setHata] = useState("")
 
   useEffect(() => {
     if (!user) return
@@ -132,6 +144,15 @@ export default function AbonelikPage() {
       if (count !== null) {
         setAracSayisi(count)
       }
+
+      const { data: pendingRequest } = await supabase
+        .from("plan_talepleri")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("durum", "bekliyor")
+        .maybeSingle()
+
+      setBekleyenTalep((pendingRequest as PlanTalebi | null) || null)
     }
     abonelikYukle()
   }, [user])
@@ -141,6 +162,19 @@ export default function AbonelikPage() {
 
   function planSec(planId: string) {
     if (planId === aktifPlan) return
+    if (bekleyenTalep) {
+      setHata("Önce mevcut havale talebinizin değerlendirilmesini bekleyin.")
+      return
+    }
+    if (planId === "essentials") {
+      setHata("Ücretsiz plana dönüş talepleri için destek ekibiyle iletişime geçin.")
+      return
+    }
+    if (!HAVALE_HAZIR) {
+      setHata("Havale bilgileri henüz yapılandırılmadı. Lütfen destek ekibiyle iletişime geçin.")
+      return
+    }
+    setHata("")
     setSeciliPlan(planId)
     setOnayModal(true)
   }
@@ -149,25 +183,46 @@ export default function AbonelikPage() {
     if (!seciliPlan || !user) return
     setYukleniyor(true)
 
-    const mappedPlan = seciliPlan === "essentials" ? "Essential" : seciliPlan === "professional" ? "Professional" : "Elite"
+    const mappedPlan = seciliPlan === "professional" ? "Professional" : "Elite"
+
+    if (havaleReferansi.trim().length < 3) {
+      setHata("Lütfen banka işlem/dekont referansını girin.")
+      setYukleniyor(false)
+      return
+    }
 
     try {
-      const { error } = await supabase
-        .from("galeri_profilleri")
-        .update({ plan: mappedPlan })
-        .eq("user_id", user.id)
+      const { data: requestId, error } = await supabase.rpc("create_plan_request", {
+        p_plan: mappedPlan,
+        p_period: odemePeriyodu,
+        p_reference: havaleReferansi.trim(),
+        p_note: kullaniciNotu.trim() || null,
+      })
 
       if (error) throw error
 
-      setAktifPlan(seciliPlan)
+      setBekleyenTalep({
+        id: requestId as string,
+        user_id: user.id,
+        mevcut_plan: normalizePlan(aktifPlan),
+        talep_edilen_plan: mappedPlan,
+        odeme_periyodu: odemePeriyodu,
+        tutar: odemePeriyodu === "yillik" ? (secilenPlanBilgi?.fiyatYillik || 0) * 12 : secilenPlanBilgi?.fiyatAylik || 0,
+        havale_referansi: havaleReferansi.trim(),
+        kullanici_notu: kullaniciNotu.trim() || null,
+        durum: "bekliyor",
+        created_at: new Date().toISOString(),
+      })
       setBasariModal(true)
-    } catch (err) {
-      console.error("Plan güncellenirken hata:", err)
-      alert("Plan güncellenemedi, lütfen tekrar deneyin.")
-    } finally {
-      setYukleniyor(false)
       setOnayModal(false)
       setSeciliPlan(null)
+      setHavaleReferansi("")
+      setKullaniciNotu("")
+    } catch (err: any) {
+      console.error("Plan güncellenirken hata:", err)
+      setHata(err.message || "Havale talebi oluşturulamadı. Lütfen tekrar deneyin.")
+    } finally {
+      setYukleniyor(false)
     }
   }
 
@@ -182,6 +237,28 @@ export default function AbonelikPage() {
       <PanelTopbar baslik="Abonelik Yönetimi" aciklama="Paketinizi yönetin ve yükseltin" />
 
       <main className="flex-1 p-6 max-w-6xl mx-auto w-full pb-16 space-y-8">
+
+        {hata && (
+          <div className="flex items-start gap-3 rounded-2xl border border-af-error/30 bg-af-error/10 px-4 py-3 text-sm text-af-error">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <p>{hata}</p>
+          </div>
+        )}
+
+        {bekleyenTalep && (
+          <div className="flex flex-col gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
+              <div>
+                <p className="font-bold text-white">Havale talebiniz inceleniyor</p>
+                <p className="mt-1 text-xs text-af-text-secondary">
+                  {bekleyenTalep.talep_edilen_plan} · {bekleyenTalep.odeme_periyodu === "yillik" ? "Yıllık" : "Aylık"} · Referans: {bekleyenTalep.havale_referansi}
+                </p>
+              </div>
+            </div>
+            <span className="w-fit rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-bold text-amber-300">Onay bekliyor</span>
+          </div>
+        )}
 
         {/* ── Mevcut Abonelik Özeti ── */}
         <div className="bg-af-surface border border-af-border rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -244,7 +321,7 @@ export default function AbonelikPage() {
               )}
             >
               Yıllık
-              <span className="text-[10px] bg-af-success/20 text-af-success px-1.5 py-0.5 rounded-md font-black">%40 indirim</span>
+              <span className="text-[10px] bg-af-success/20 text-af-success px-1.5 py-0.5 rounded-md font-black">Yıllık avantaj</span>
             </button>
           </div>
         </div>
@@ -326,10 +403,10 @@ export default function AbonelikPage() {
                 {/* Buton */}
                 <button
                   onClick={() => planSec(plan.id)}
-                  disabled={aktif}
+                  disabled={aktif || !!bekleyenTalep}
                   className={cn(
                     "w-full py-3 rounded-xl text-sm font-bold transition-all",
-                    aktif
+                    aktif || !!bekleyenTalep
                       ? "bg-af-surface-2 text-af-text-disabled cursor-default border border-af-border"
                       : plan.id === "elite"
                         ? "bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/20 hover:shadow-amber-500/30"
@@ -338,7 +415,7 @@ export default function AbonelikPage() {
                           : "bg-af-surface-2 hover:bg-af-border text-white border border-af-border"
                   )}
                 >
-                  {aktif ? "Mevcut Planınız" : plan.id === "essentials" ? "Ücretsiz Kalın" : `${plan.ad}'e Geç`}
+                  {aktif ? "Mevcut Planınız" : bekleyenTalep ? "Talep İnceleniyor" : plan.id === "essentials" ? "Destek ile Değiştir" : `${plan.ad}'e Geç`}
                 </button>
               </div>
             )
@@ -354,7 +431,7 @@ export default function AbonelikPage() {
             {[
               { icon: Shield, label: "SSL & Güvenlik", desc: "Tüm veriler şifreli" },
               { icon: Zap, label: "Hızlı CDN", desc: "Türkiye'de hızlı yükleme" },
-              { icon: Receipt, label: "Fatura Kesilmez", desc: "Kendi kesilebilirsiniz" },
+              { icon: Receipt, label: "Şeffaf Planlar", desc: "Gizli ücret yok" },
               { icon: Sparkles, label: "AutoFlow Güncellemeleri", desc: "Otomatik yeni özellikler" },
             ].map((item) => {
               const Ic = item.icon
@@ -407,17 +484,45 @@ export default function AbonelikPage() {
               </div>
             </div>
 
-            <div className="flex items-start gap-2 bg-af-accent/5 border border-af-accent/10 rounded-xl p-3 mb-5">
-              <AlertCircle className="w-4 h-4 text-af-accent flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-af-text-secondary leading-relaxed">
-                Bu demo sürümde ödeme entegrasyonu simüle edilmiştir. Gerçek sistemde kredi kartı veya havale ile ödeme yapılabilecektir.
-              </p>
+            <div className="mb-4 rounded-xl border border-af-accent/20 bg-af-accent/5 p-4 text-xs">
+              <div className="mb-3 flex items-center gap-2 font-bold text-white">
+                <Landmark className="h-4 w-4 text-af-accent" /> Havale Bilgileri
+              </div>
+              <dl className="space-y-2 text-af-text-secondary">
+                <div className="flex justify-between gap-4"><dt>Alıcı</dt><dd className="text-right font-semibold text-white">{HAVALE_ALICI}</dd></div>
+                <div className="flex justify-between gap-4"><dt>IBAN</dt><dd className="break-all text-right font-mono text-white">{HAVALE_IBAN}</dd></div>
+              </dl>
+            </div>
+
+            <div className="mb-5 space-y-3">
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-af-text-secondary">Banka işlem/dekont referansı *</label>
+                <input
+                  value={havaleReferansi}
+                  onChange={(event) => setHavaleReferansi(event.target.value)}
+                  maxLength={120}
+                  placeholder="Örn. 123456789"
+                  className="w-full rounded-xl border border-af-border bg-af-surface-2 px-3 py-2.5 text-sm text-white outline-none focus:border-af-accent"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-af-text-secondary">Not (isteğe bağlı)</label>
+                <textarea
+                  value={kullaniciNotu}
+                  onChange={(event) => setKullaniciNotu(event.target.value)}
+                  maxLength={500}
+                  rows={2}
+                  placeholder="Ödeme hakkında ek bilgi"
+                  className="w-full resize-none rounded-xl border border-af-border bg-af-surface-2 px-3 py-2.5 text-sm text-white outline-none focus:border-af-accent"
+                />
+              </div>
+              {hata && <p className="text-xs text-af-error">{hata}</p>}
             </div>
 
             <div className="flex gap-3">
               <button
                 onClick={() => { setOnayModal(false); setSeciliPlan(null) }}
-                disabled={yukleniyor}
+                disabled={yukleniyor || havaleReferansi.trim().length < 3}
                 className="flex-1 border border-af-border hover:bg-af-surface-2 text-af-text-secondary font-semibold py-3 rounded-xl transition-colors text-sm"
               >
                 Vazgeç
@@ -435,7 +540,7 @@ export default function AbonelikPage() {
                 {yukleniyor ? (
                   <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> İşleniyor...</>
                 ) : (
-                  <>Geçişi Onayla <ChevronRight className="w-4 h-4" /></>
+                  <>Ödeme Yaptım <ChevronRight className="w-4 h-4" /></>
                 )}
               </button>
             </div>
@@ -450,15 +555,15 @@ export default function AbonelikPage() {
             <div className="w-16 h-16 rounded-2xl bg-af-success/10 border border-af-success/20 flex items-center justify-center mx-auto mb-4">
               <Check className="w-8 h-8 text-af-success" />
             </div>
-            <h3 className="font-black text-white text-xl mb-2">Planınız Güncellendi! 🎉</h3>
+            <h3 className="font-black text-white text-xl mb-2">Talebiniz Alındı</h3>
             <p className="text-sm text-af-text-secondary mb-6">
-              <span className="font-bold text-white">{PLANLAR.find(p => p.id === aktifPlan)?.ad}</span> planına başarıyla geçiş yaptınız. Yeni özellikleriniz hemen aktif!
+              Havale bilginiz admin incelemesine gönderildi. Onaylandığında planınız otomatik olarak aktifleşecek ve bildirim alacaksınız.
             </p>
             <button
               onClick={() => setBasariModal(false)}
               className="w-full bg-af-accent hover:bg-af-accent-hover text-white font-bold py-3 rounded-xl transition-colors"
             >
-              Harika, Başlayalım!
+              Tamam
             </button>
           </div>
         </div>

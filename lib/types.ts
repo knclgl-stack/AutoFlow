@@ -96,3 +96,28 @@ export interface DashboardStats {
   toplam_qr: number
   bu_hafta_whatsapp: number
 }
+
+export type PlanTalepDurumu = 'bekliyor' | 'onaylandi' | 'reddedildi'
+export type OdemePeriyodu = 'aylik' | 'yillik'
+
+export interface PlanTalebi {
+  id: string
+  user_id: string
+  mevcut_plan: AbonelikPlani
+  talep_edilen_plan: Exclude<AbonelikPlani, 'Essential'>
+  odeme_periyodu: OdemePeriyodu
+  tutar: number
+  havale_referansi: string
+  kullanici_notu?: string | null
+  durum: PlanTalepDurumu
+  admin_notu?: string | null
+  created_at: string
+  reviewed_at?: string | null
+  reviewed_by?: string | null
+}
+
+export interface AiKotaDurumu {
+  plan: AbonelikPlani
+  used: number
+  limit: number
+}

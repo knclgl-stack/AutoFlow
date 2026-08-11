@@ -1,55 +1,38 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { AfLogo } from "@/components/autoflow/af-logo"
 import { useAuth } from "@/lib/auth-context"
 import {
   QrCode, BarChart3, MessageCircle, ArrowRight, LogOut,
-  Star, CheckCircle, ChevronRight, TrendingUp, Clock, Shield,
-  Zap, Users, Eye, Sparkles, Car, Camera, Lock, ChevronDown
+  CheckCircle, ChevronRight, Clock, Shield,
+  Zap, Sparkles, Car, Camera, Lock, ChevronDown
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-/* ─────────────────────────────────────────────
-   VERİ: Sosyal Kanıt & Rakamlar
-   (Sosyal Kanıt - Social Proof Prensibi)
-───────────────────────────────────────────── */
 const ISTATISTIKLER = [
-  { sayi: "2.400+", etiket: "Aktif Galeri", icon: Users },
-  { sayi: "48.000+", etiket: "QR Tarama / Ay", icon: Eye },
-  { sayi: "%34", etiket: "Daha Fazla Satış Dönüşümü", icon: TrendingUp },
-  { sayi: "4.9★", etiket: "Ortalama Puan", icon: Star },
+  { sayi: "3", etiket: "Essentials Araç Kotası", icon: Car },
+  { sayi: "150", etiket: "Professional AI / Ay", icon: Sparkles },
+  { sayi: "500", etiket: "Elite AI / Ay", icon: Zap },
+  { sayi: "7/24", etiket: "Dijital Vitrin", icon: Clock },
 ]
 
-/* Yorumlar — Sosyal Kanıt + Authority Bias */
-const YORUMLAR = [
+const SENARYOLAR = [
   {
-    ad: "Mehmet K.",
-    galeri: "Kartal Otomotiv, İstanbul",
-    yorum: "AutoFlow'dan önce müşteri takibimiz tamamen kağıt üzerindeydi. Şimdi hangi aracın kaç kez görüntülendiğini anlık görüyorum. İlk ayda satışlarımız %28 arttı.",
-    puan: 5,
-    sure: "4 ay önce",
-    avatar: "MK",
-    renk: "bg-blue-600"
+    baslik: "Vitrindeki araç",
+    aciklama: "Müşteri QR kodu okutarak aracın yayınlanan bilgilerine, fotoğraflarına ve WhatsApp iletişim düğmesine ulaşır.",
+    icon: QrCode,
   },
   {
-    ad: "Ayşe D.",
-    galeri: "Premium Motors, Ankara",
-    yorum: "QR kodları sayesinde müşteriler araç hakkında her şeyi okutup WhatsApp'tan direkt yazıyor. Pazarlık sürecimiz inanılmaz kısaldı. Kesinlikle tavsiye ederim.",
-    puan: 5,
-    sure: "2 ay önce",
-    avatar: "AD",
-    renk: "bg-purple-600"
+    baslik: "Uzaktan inceleme",
+    aciklama: "Paylaşılabilir galeri sayfası; aktif ve satılmış araçları, galeri telefonunu ve adresini tek yerde gösterir.",
+    icon: Camera,
   },
   {
-    ad: "Burak T.",
-    galeri: "Toprak Motorlu Araçlar, İzmir",
-    yorum: "Kurulumu 15 dakika sürdü. Rakiplerim hâlâ fax kullanırken biz QR'la çalışıyoruz. Galeri sayfamıza gelen müşteri sayısı 3 katına çıktı.",
-    puan: 5,
-    sure: "6 ay önce",
-    avatar: "BT",
-    renk: "bg-emerald-600"
+    baslik: "Özel yönetim paneli",
+    aciklama: "Araç yönetimi, QR görüntülenmeleri ve WhatsApp tıklamaları yalnızca yetkili galeri hesabında kalır.",
+    icon: BarChart3,
   },
 ]
 
@@ -61,7 +44,7 @@ const FAYDALAR = [
     faydaMetni: "Müşteri QR'ı okutunca telefonu zaten elinde — uygulama indirmeden, internet aramadan tüm araç bilgisine ulaşır.",
     renk: "from-violet-500 to-af-accent",
     glow: "shadow-violet-500/20",
-    detay: "Ortalama sayfa yükleme: 0.8 saniye"
+    detay: "Uygulama indirmek gerekmez"
   },
   {
     icon: BarChart3,
@@ -69,15 +52,15 @@ const FAYDALAR = [
     faydaMetni: "Gerçek zamanlı analitikle hangi aracınızın kaç kez görüntülendiğini, WhatsApp tıklamalarını ve ziyaretçi lokasyonlarını görün.",
     renk: "from-amber-500 to-orange-500",
     glow: "shadow-amber-500/20",
-    detay: "Raporlar her 5 dakikada güncellenir"
+    detay: "Görüntülenme ve WhatsApp tıklamaları"
   },
   {
     icon: MessageCircle,
     baslik: "WhatsApp'a Direkt Akış",
-    faydaMetni: "\"Bu araçla ilgileniyorum\" butonu müşteriyi araç bilgisiyle dolu hazır mesajla sizi arar. Soğuk arama artık yok.",
+    faydaMetni: "\"Bu araçla ilgileniyorum\" butonu müşteriyi araç bilgisi eklenmiş hazır mesajla WhatsApp'a yönlendirir.",
     renk: "from-emerald-500 to-green-600",
     glow: "shadow-emerald-500/20",
-    detay: "%41 daha yüksek dönüşüm oranı"
+    detay: "Hazır araç mesajı"
   },
   {
     icon: Camera,
@@ -93,12 +76,12 @@ const FAYDALAR = [
     faydaMetni: "Kendi galeri profilinizi oluşturun. Müşteriler sizi Google'da arayabilir, doğrudan araç kataloğunuzu görebilir.",
     renk: "from-sky-500 to-blue-600",
     glow: "shadow-sky-500/20",
-    detay: "SEO optimize galeri sayfası"
+    detay: "Paylaşılabilir galeri bağlantısı"
   },
   {
     icon: Zap,
-    baslik: "5 Dakikada Kurulum",
-    faydaMetni: "Teknik bilgi gerekmez. Hesap açın, aracı ekleyin, QR'ı indirin. Rakipleriniz hâlâ kağıtta sizi dijital galeriden geçmiş bulurlar.",
+    baslik: "Kolay Kurulum",
+    faydaMetni: "Teknik bilgi gerekmez. Hesap açın, aracınızı ekleyin ve araca özel QR kodunu indirin.",
     renk: "from-yellow-400 to-amber-500",
     glow: "shadow-yellow-400/20",
     detay: "Kredi kartı gerektirmez"
@@ -112,50 +95,19 @@ const KARSILASTIRMA = [
   { ozellik: "WhatsApp entegrasyonu", eski: false, yeni: true },
   { ozellik: "Anlık görüntülenme analitiki", eski: false, yeni: true },
   { ozellik: "AI fotoğraf stüdyosu", eski: false, yeni: true },
-  { ozellik: "Müşteri bekleme süresi", eski: "15-20 dk", yeni: "8 saniye" },
-  { ozellik: "Araç başı ilan maliyeti", eski: "180₺+", yeni: "Ücretsiz başla" },
+  { ozellik: "Araç bilgisine erişim", eski: "Personele bağlı", yeni: "QR ile 7/24" },
+  { ozellik: "Dijital vitrin", eski: "Harici platforma bağlı", yeni: "Kendi galeri sayfanız" },
 ]
 
 /* SSS - Objection Handling (İtiraz Karşılama) */
 const SSS = [
-  { soru: "Teknik bilgim yok, kurabilir miyim?", cevap: "Evet. Hesap oluşturmak Google hesabı açmaktan bile kolaydır. Araç bilgilerini giriyorsunuz, QR kodunuzu indiriyorsunuz. Ortalama kurulum süresi 4 dakika 38 saniye." },
+  { soru: "Teknik bilgim yok, kurabilir miyim?", cevap: "Evet. Hesabınızı oluşturduktan sonra araç bilgilerini girip fotoğrafları yüklersiniz; sistem araca özel QR kodunu oluşturur." },
   { soru: "Müşteri telefona bir şey indirmek zorunda mı?", cevap: "Hayır. Modern akıllı telefonlar QR kodu nativeli okur. Herhangi bir uygulama indirmeden, sadece kamerasını açıp taramaları yeterli." },
   { soru: "Fotoğraflarım iyi değilse ne olur?", cevap: "Flow AI Stüdyo özelliğimiz aracınızın fotoğrafını analiz edip rengine özel profesyonel stüdyo ortamına yerleştirir. Garaj köşesindeki fotoğraf showroom kalitesine dönüşür." },
-  { soru: "Rakibim de kullanmaya başlarsa?", cevap: "Erken avantaj kritiktir. AutoFlow kullanan galeriler dijital varlıklarını ve Google sıralamalarını bugünden oluşturuyor. Beklemek rekabette geri kalmak demek." },
+  { soru: "Araç ve analiz bilgilerimi kimler görür?", cevap: "Aktif ve satılmış araçların yayınlanan bilgileri galeri sayfanızda görünür. Pasif araçlar, gizlenen fiyatlar ve analiz verileri yalnızca yetkili hesabınızda kalır." },
   { soru: "Zaten Sahibinden / Arabam.com kullanıyorum, AutoFlow'a ne gerek var?", cevap: "AutoFlow, online ilan platformlarının bir rakibi değil; aksine fiziksel showroomunuzdaki satış temsilcinizdir. İlan siteleri uzaktaki alıcıları çekerken, AutoFlow galerinizin önüne gelen, vitrindeki arabayı süzüp camdaki QR kodu okutan sıcak müşterilerinize anında tüm detayları sunar. Böylece kapıdaki müşteriyi kaçırmaz, araç başına fahiş ilan ücretleri ödemek yerine kendi web sitenizde sınırsız katalog sergilersiniz." },
   { soru: "Ücretli plana geçmeden deneyebilir miyim?", cevap: "Evet. Ücretsiz Essentials planında 3 araç ekleyebilir, QR kodları oluşturabilir, galeri sayfanızı kullanabilirsiniz. Kredi kartı bilgisi istenmez." },
 ]
-
-/* Canlı sayaç */
-function useLiveCounter(hedef: number, sure: number = 2000) {
-  const [sayi, setSayi] = useState(0)
-  const ref = useRef(false)
-  useEffect(() => {
-    if (ref.current) return
-    ref.current = true
-    const baslangic = Date.now()
-    const tick = () => {
-      const gecen = Date.now() - baslangic
-      const ilerleme = Math.min(gecen / sure, 1)
-      const ease = 1 - Math.pow(1 - ilerleme, 4)
-      setSayi(Math.round(hedef * ease))
-      if (ilerleme < 1) requestAnimationFrame(tick)
-    }
-    requestAnimationFrame(tick)
-  }, [hedef, sure])
-  return sayi
-}
-
-/* Yıldız */
-function Yildizlar({ puan }: { puan: number }) {
-  return (
-    <div className="flex gap-0.5">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <Star key={i} className={cn("w-3.5 h-3.5", i < puan ? "text-amber-400 fill-amber-400" : "text-af-border")} />
-      ))}
-    </div>
-  )
-}
 
 /* SSS Item */
 function SSSItem({ soru, cevap }: { soru: string; cevap: string }) {
@@ -211,7 +163,7 @@ export default function LandingPage() {
           <div className="hidden md:flex items-center gap-6 text-sm text-af-text-secondary">
             <a href="#ozellikler" className="hover:text-white transition-colors">Özellikler</a>
             <a href="#fiyatlar" className="hover:text-white transition-colors">Fiyatlar</a>
-            <a href="#yorumlar" className="hover:text-white transition-colors">Yorumlar</a>
+            <a href="#senaryolar" className="hover:text-white transition-colors">Kullanım</a>
           </div>
           <div className="flex items-center gap-3">
             {user ? (
@@ -249,16 +201,9 @@ export default function LandingPage() {
 
         <div className="relative z-10 text-center max-w-4xl mx-auto px-5 py-20">
 
-          {/* Social Proof Badge — Bandwagon Effect */}
           <div className="inline-flex items-center gap-2 bg-af-accent/10 border border-af-accent/25 text-af-accent text-sm px-4 py-2 rounded-full mb-8">
-            <span className="flex">
-              {["MK","AD","BT","YS","FK"].map((i, idx) => (
-                <span key={i} className={cn("w-6 h-6 rounded-full text-white text-[9px] font-black flex items-center justify-center border-2 border-af-bg", idx > 0 && "-ml-1.5",
-                  ["bg-blue-600","bg-purple-600","bg-emerald-600","bg-orange-500","bg-pink-600"][idx]
-                )}>{i}</span>
-              ))}
-            </span>
-            <span className="font-semibold">2.400+ galeri sahibi şu an kullanıyor</span>
+            <QrCode className="w-4 h-4" />
+            <span className="font-semibold">Galeriler için QR destekli dijital vitrin</span>
           </div>
 
           {/* Ana başlık — Problem-Agitate-Solution (PAS) */}
@@ -270,13 +215,12 @@ export default function LandingPage() {
 
           {/* Acı noktası */}
           <p className="text-af-text-secondary text-lg sm:text-xl max-w-2xl mx-auto mb-4 leading-relaxed">
-            Çoğu galeri sahibinin kaybettiği satışların <strong className="text-white">%67'si</strong> bilgiye ulaşamayan müşterilerden kaynaklanıyor.
-            AutoFlow QR ile müşteriniz <strong className="text-af-accent">8 saniyede</strong> her şeye ulaşır, WhatsApp'a yönlenir.
+            AutoFlow QR ile müşteriniz uygulama indirmeden yayınladığınız araç bilgilerine ulaşır ve WhatsApp üzerinden sizinle iletişim kurar.
           </p>
 
           {/* Değer önerisi özeti */}
           <div className="flex flex-wrap justify-center gap-3 mb-10">
-            {["Uygulama indirmez", "5 dk kurulum", "Kredi kartı yok", "3 araç ücretsiz"].map(t => (
+            {["Uygulama indirmez", "Kolay kurulum", "Kredi kartı yok", "3 araç ücretsiz"].map(t => (
               <span key={t} className="flex items-center gap-1.5 text-xs font-semibold text-af-text-secondary bg-af-surface border border-af-border px-3 py-1.5 rounded-full">
                 <CheckCircle className="w-3.5 h-3.5 text-af-success" /> {t}
               </span>
@@ -308,9 +252,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ══════════════════════ İSTATİSTİKLER ══════════════════════
-          Prensip: Social Proof + Authority + Specificity Bias
-      ══════════════════════════════════════════════════════════════ */}
+      {/* ══════════════════════ PLAN ÖZETİ ══════════════════════ */}
       <section className="py-14 px-5 border-y border-af-border bg-af-surface/30">
         <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-6">
           {ISTATISTIKLER.map((s) => {
@@ -336,13 +278,13 @@ export default function LandingPage() {
       <section className="py-20 px-5">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
-            <span className="text-xs uppercase font-bold tracking-wider text-af-accent mb-3 block">Rakipleriniz Nerede?</span>
+            <span className="text-xs uppercase font-bold tracking-wider text-af-accent mb-3 block">Dijital Vitrin</span>
             <h2 className="text-3xl sm:text-4xl font-black mb-4">
-              Eski Yöntemler Sizi{" "}
-              <span className="text-red-400">Müşteri Kaybettiriyor</span>
+              Araç Bilgileri Her Zaman{" "}
+              <span className="text-af-accent">Erişilebilir</span>
             </h2>
             <p className="text-af-text-secondary max-w-xl mx-auto text-sm leading-relaxed">
-              Dijital dönüşüme geç kalan galeriler, 2025 yılında ortalama %23 daha az satış gerçekleştirdi. Araştırmayı yaptı: McKinsey Automotive Report 2024.
+              AutoFlow, vitrindeki QR kodu ile araç bilgilerini, galeri iletişim bilgilerini ve WhatsApp bağlantısını tek sayfada birleştirir.
             </p>
           </div>
 
@@ -368,7 +310,7 @@ export default function LandingPage() {
                 <span className="w-2 h-2 rounded-full bg-af-accent animate-pulse" /> AutoFlow ile
               </h3>
               <ul className="space-y-3">
-                {["Müşteri QR okutunca 8 saniyede her şeye ulaşır", "Fiyatı anlık güncellersiniz, anında yansır", "Her araç için görüntülenme ve tıklama analitiki", "Flow AI ile fotoğraf otomatik showroom kalitesine çıkar", "7/24 dijital galeri sayfanız müşteri bekler"].map(m => (
+                {["Müşteri QR okutarak yayınlanan bilgilere ulaşır", "Fiyatı panelden güncelleyebilirsiniz", "Her araç için görüntülenme ve tıklama analitiği", "Uygun planlarda Flow AI fotoğraf araçları", "7/24 erişilebilen dijital galeri sayfası"].map(m => (
                   <li key={m} className="flex items-start gap-2.5 text-sm text-af-text">
                     <CheckCircle className="w-4 h-4 text-af-success flex-shrink-0 mt-0.5" />
                     {m}
@@ -388,13 +330,13 @@ export default function LandingPage() {
           <div className="text-center mb-14">
             <span className="text-xs uppercase font-bold tracking-wider text-af-accent mb-3 block">Basitlik Güçtür</span>
             <h2 className="text-3xl sm:text-4xl font-black mb-3">3 Adımda Canlıya Alın</h2>
-            <p className="text-af-text-secondary text-sm">Teknik bilgi gerekmez. Ortalama kurulum süresi: <strong className="text-white">4 dakika 38 saniye</strong></p>
+            <p className="text-af-text-secondary text-sm">Teknik bilgi gerekmez. Hesabınızı oluşturun, araç bilgilerini ekleyin ve QR kodunu indirin.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
             {[
-              { n: "01", baslik: "Hesabınızı Açın", aciklama: "E-posta ile 30 saniyede kayıt olun. Kredi kartı bilgisi istenmez, hemen başlayın.", zaman: "~30 saniye", icon: Zap },
-              { n: "02", baslik: "Aracınızı Ekleyin", aciklama: "Fotoğraf yükleyin, özellikler ve fiyatı girin. Flow AI fotoğrafı otomatik iyileştirir.", zaman: "~3 dakika", icon: Car },
-              { n: "03", baslik: "QR'ı Yapıştırın, Satış Başlasın", aciklama: "QR kodu indirin, araç camına yapıştırın. Müşterileriniz hemen erişsin.", zaman: "~1 dakika", icon: QrCode },
+              { n: "01", baslik: "Hesabınızı Açın", aciklama: "E-posta ile kaydolun. Kredi kartı bilgisi istenmez.", zaman: "Ücretsiz kayıt", icon: Zap },
+              { n: "02", baslik: "Aracınızı Ekleyin", aciklama: "Fotoğraf yükleyin, özellikleri ve yayınlamak istediğiniz fiyatı girin.", zaman: "Panelden yönetim", icon: Car },
+              { n: "03", baslik: "QR Kodunu Yayınlayın", aciklama: "QR kodunu indirin ve araç camında veya dijital kanallarınızda paylaşın.", zaman: "Araca özel QR", icon: QrCode },
             ].map((adim, i) => {
               const Ic = adim.icon
               return (
@@ -448,34 +390,27 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ══════════════════════ SOSYAL KANIT / YORUMLAR ══════════════════════
-          Prensip: Social Proof + Specificity (isim ve galeri adı) + Authority
-      ══════════════════════════════════════════════════════════════════════ */}
-      <section id="yorumlar" className="py-20 px-5 bg-af-surface/30 border-y border-af-border">
+      {/* ══════════════════════ KULLANIM SENARYOLARI ══════════════════════ */}
+      <section id="senaryolar" className="py-20 px-5 bg-af-surface/30 border-y border-af-border">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-14">
-            <span className="text-xs uppercase font-bold tracking-wider text-af-accent mb-3 block">Müşterilerimiz Anlatıyor</span>
-            <h2 className="text-3xl font-black mb-2">Gerçek Galeriler, Gerçek Sonuçlar</h2>
-            <div className="flex justify-center items-center gap-2 mt-3">
-              <Yildizlar puan={5} />
-              <span className="text-sm text-af-text-secondary font-semibold">4.9/5 — 312 değerlendirme</span>
-            </div>
+            <span className="text-xs uppercase font-bold tracking-wider text-af-accent mb-3 block">Nerede Kullanılır?</span>
+            <h2 className="text-3xl font-black mb-2">Galeriden Panele Tek Akış</h2>
+            <p className="text-sm text-af-text-secondary mt-3">Yayınlanan bilgiler müşteriye, yönetim ve analiz verileri yalnızca size görünür.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {YORUMLAR.map((y) => (
-              <div key={y.ad} className="bg-af-surface border border-af-border rounded-2xl p-6 flex flex-col">
-                <Yildizlar puan={y.puan} />
-                <p className="text-af-text-secondary text-sm leading-relaxed mt-3 flex-1">"{y.yorum}"</p>
-                <div className="flex items-center gap-3 mt-4 pt-4 border-t border-af-border">
-                  <div className={cn("w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-black flex-shrink-0", y.renk)}>{y.avatar}</div>
-                  <div>
-                    <p className="font-bold text-white text-sm">{y.ad}</p>
-                    <p className="text-[10px] text-af-text-disabled">{y.galeri}</p>
+            {SENARYOLAR.map((senaryo) => {
+              const Icon = senaryo.icon
+              return (
+                <div key={senaryo.baslik} className="bg-af-surface border border-af-border rounded-2xl p-6">
+                  <div className="w-11 h-11 rounded-xl bg-af-accent/10 flex items-center justify-center mb-4">
+                    <Icon className="w-5 h-5 text-af-accent" />
                   </div>
-                  <span className="ml-auto text-[10px] text-af-text-disabled">{y.sure}</span>
+                  <h3 className="font-bold text-white mb-2">{senaryo.baslik}</h3>
+                  <p className="text-af-text-secondary text-sm leading-relaxed">{senaryo.aciklama}</p>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       </section>
@@ -511,7 +446,7 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
-          <p className="text-center text-xs text-af-text-disabled mt-5">Tüm planlar için 30 gün iade garantisi · Yıllık ödemede %40 indirim</p>
+          <p className="text-center text-xs text-af-text-disabled mt-5">Ücretli plan talepleri havale bilgileriyle alınır ve yönetici onayından sonra aktive edilir.</p>
         </div>
       </section>
 
@@ -546,10 +481,10 @@ export default function LandingPage() {
             Başlayın
           </h2>
           <p className="text-af-text-secondary mb-3 text-base max-w-lg mx-auto leading-relaxed">
-            Her geçen gün rakipleriniz dijital galeri sayfalarını büyütüyor, Google'da üst sıralara yerleşiyor. İlk 3 araç tamamen <strong className="text-white">ücretsiz.</strong>
+            Essentials planıyla ilk 3 aracınızı ücretsiz yayınlayın; galeri sayfanızı ve araç QR kodlarını deneyin.
           </p>
           <p className="text-sm text-af-text-disabled mb-10">
-            Kredi kartı gerekmez · Sözleşme yok · İstediğiniz zaman iptal
+            Kredi kartı gerekmez · Kayıt herkese açık · Ücretli planlar havale ile
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             <Link
@@ -562,7 +497,7 @@ export default function LandingPage() {
             </Link>
           </div>
           <div className="flex flex-wrap justify-center gap-4 mt-6">
-            {["SSL Şifreli", "KVKK Uyumlu", "Türkiye Sunucuları"].map(t => (
+            {["SSL Şifreli", "Erişim Kontrollü", "Türkçe Arayüz"].map(t => (
               <span key={t} className="flex items-center gap-1.5 text-xs text-af-text-disabled">
                 <Shield className="w-3 h-3 text-af-success" /> {t}
               </span>
@@ -581,7 +516,7 @@ export default function LandingPage() {
             <div className="flex gap-6 text-sm text-af-text-disabled">
               <a href="#ozellikler" className="hover:text-white transition-colors">Özellikler</a>
               <a href="#fiyatlar" className="hover:text-white transition-colors">Fiyatlar</a>
-              <a href="#yorumlar" className="hover:text-white transition-colors">Yorumlar</a>
+              <a href="#senaryolar" className="hover:text-white transition-colors">Kullanım</a>
               <Link href="/giris" className="hover:text-white transition-colors">Giriş Yap</Link>
             </div>
           </div>

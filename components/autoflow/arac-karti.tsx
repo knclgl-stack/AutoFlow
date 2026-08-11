@@ -25,7 +25,7 @@ export function AracKarti({ arac, href, className }: AracKartiProps) {
         )}>
           <div className="relative overflow-hidden bg-af-surface-2" style={{ aspectRatio: "16/10" }}>
             <img 
-              src={arac.fotograflar?.[0] || "/placeholder-car.png"} 
+              src={arac.fotograflar?.[0] || "/placeholder.jpg"}
               alt={getAracBaslik(arac)} 
               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
               loading="lazy"

@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -25,20 +25,14 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Session'ı tazele — bu satır kritik, kaldırma
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Panel rotalarını koru
-  if (
-    !user &&
-    request.nextUrl.pathname.startsWith("/panel")
-  ) {
+  if (!user && request.nextUrl.pathname.startsWith("/panel")) {
     const url = request.nextUrl.clone()
     url.pathname = "/giris"
     return NextResponse.redirect(url)
   }
 
-  // Giriş yapmış kullanıcı /giris veya /kayit sayfasına gitmesin
   if (
     user &&
     (request.nextUrl.pathname === "/giris" ||

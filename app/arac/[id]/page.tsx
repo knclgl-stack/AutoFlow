@@ -17,8 +17,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   // id'ye ya da qr_slug'a göre aracı getir
   const { data: arac } = await (isUuid
-    ? supabase.from("araclar").select("*").eq("id", id).single()
-    : supabase.from("araclar").select("*").eq("qr_slug", id).single())
+    ? supabase.from("araclar_public").select("*").eq("id", id).single()
+    : supabase.from("araclar_public").select("*").eq("qr_slug", id).single())
 
   if (!arac) {
     return { title: "Araç Bulunamadı — AutoFlow" }
@@ -26,7 +26,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   // Aracın sahibinin galeri bilgilerini getir
   const { data: galeri } = await supabase
-    .from("galeri_profilleri")
+    .from("galeri_profilleri_public")
     .select("*")
     .eq("user_id", arac.user_id)
     .single()
@@ -55,8 +55,8 @@ export default async function AracDetayPage({ params }: PageProps) {
 
   // id'ye ya da qr_slug'a göre aracı getir
   const { data: arac, error: aracError } = await (isUuid
-    ? supabase.from("araclar").select("*").eq("id", id).single()
-    : supabase.from("araclar").select("*").eq("qr_slug", id).single())
+    ? supabase.from("araclar_public").select("*").eq("id", id).single()
+    : supabase.from("araclar_public").select("*").eq("qr_slug", id).single())
 
   if (aracError || !arac) {
     notFound()
@@ -64,7 +64,7 @@ export default async function AracDetayPage({ params }: PageProps) {
 
   // Aracın sahibinin galeri bilgilerini getir
   const { data: galeri, error: galeriError } = await supabase
-    .from("galeri_profilleri")
+    .from("galeri_profilleri_public")
     .select("*")
     .eq("user_id", arac.user_id)
     .single()

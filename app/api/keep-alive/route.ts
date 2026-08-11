@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
-export const runtime = "edge"
+export const runtime = "nodejs"
 
 export async function GET() {
   try {
@@ -11,7 +11,8 @@ export async function GET() {
     )
 
     // Veritabanını uyanık tutmak için minimal bir sorgu
-    await supabase.from("galeri_profilleri").select("user_id").limit(1)
+    const { error } = await supabase.from("galeri_profilleri_public").select("user_id").limit(1)
+    if (error) throw error
 
     return NextResponse.json({ ok: true, ts: new Date().toISOString() })
   } catch {

@@ -90,18 +90,9 @@ export function PanelTopbar({ baslik, aciklama }: PanelTopbarProps) {
         })
 
         for (const b of unreadList) {
-          if (b.user_id) {
-            await supabase
-              .from("bildirimler")
-              .update({ read: true })
-              .eq("id", b.id)
-          } else {
-            const updatedReadBy = [...(b.read_by || []), user.id]
-            await supabase
-              .from("bildirimler")
-              .update({ read_by: updatedReadBy })
-              .eq("id", b.id)
-          }
+          await supabase.rpc("mark_notification_read", {
+            p_notification_id: b.id,
+          })
         }
       } catch (err) {
         console.error("Error marking notifications as read:", err)

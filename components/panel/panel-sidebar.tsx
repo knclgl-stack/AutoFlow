@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Car, Plus, QrCode, BarChart3, Settings, LogOut, Sparkles, CreditCard, Shield, Receipt, HelpCircle, Menu, X } from "lucide-react"
+import { LayoutDashboard, Car, Plus, QrCode, BarChart3, Settings, LogOut, Sparkles, CreditCard, Shield, Landmark, HelpCircle, Menu, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { AfLogo } from "@/components/autoflow/af-logo"
 import { useAuth } from "@/lib/auth-context"
@@ -17,7 +17,6 @@ const navItems = [
   { href: "/panel/qr", icon: QrCode, label: "QR Kodlar" },
   { href: "/panel/analitik", icon: BarChart3, label: "Analitik" },
   { href: "/panel/flow-ai", icon: Sparkles, label: "Flow AI" },
-  { href: "/panel/fatura", icon: Receipt, label: "Fatura & Muhasebe" },
   { href: "/panel/abonelik", icon: CreditCard, label: "Abonelik" },
   { href: "/panel/destek", icon: HelpCircle, label: "Destek & Yardım" },
 ]
@@ -111,15 +110,26 @@ export function PanelSidebar() {
           )
         })}
         {showAdmin && (
-          <Link href="/panel/admin"
-            className={cn(
-              "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
-              isActive("/panel/admin") ? "text-white bg-af-accent" : "text-af-text-secondary hover:text-af-text hover:bg-af-surface-2"
-            )}
-          >
-            <Shield className={cn("w-4 h-4", isActive("/panel/admin") ? "text-white" : "text-af-text-disabled")} />
-            Admin Paneli
-          </Link>
+          <>
+            <Link href="/panel/admin"
+              className={cn(
+                "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
+                pathname === "/panel/admin" ? "text-white bg-af-accent" : "text-af-text-secondary hover:text-af-text hover:bg-af-surface-2"
+              )}
+            >
+              <Shield className={cn("w-4 h-4", pathname === "/panel/admin" ? "text-white" : "text-af-text-disabled")} />
+              Admin Paneli
+            </Link>
+            <Link href="/panel/admin/havale"
+              className={cn(
+                "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
+                isActive("/panel/admin/havale") ? "text-white bg-af-accent" : "text-af-text-secondary hover:text-af-text hover:bg-af-surface-2"
+              )}
+            >
+              <Landmark className={cn("w-4 h-4", isActive("/panel/admin/havale") ? "text-white" : "text-af-text-disabled")} />
+              Havale Talepleri
+            </Link>
+          </>
         )}
       </nav>
 

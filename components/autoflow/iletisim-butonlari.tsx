@@ -12,9 +12,10 @@ interface IletisimButonlariProps {
   galeri: Galeri
   variant?: "sticky" | "inline"
   eventId?: string | null
+  eventToken?: string | null
 }
 
-export function IletisimButonlari({ arac, galeri, variant = "sticky", eventId }: IletisimButonlariProps) {
+export function IletisimButonlari({ arac, galeri, variant = "sticky", eventId, eventToken }: IletisimButonlariProps) {
   const [copied, setCopied] = useState(false)
   const [showShare, setShowShare] = useState(false)
 
@@ -28,13 +29,13 @@ export function IletisimButonlari({ arac, galeri, variant = "sticky", eventId }:
   const phoneUrl = galeri.telefon ? `tel:${galeri.telefon.replace(/\s/g, "")}` : ""
 
   const handleWhatsAppClick = async () => {
-    if (!eventId) return
+    if (!eventId || !eventToken) return
     try {
       const supabase = createClient()
-      await supabase
-        .from("qr_events")
-        .update({ whatsapp_tiklamasi: true })
-        .eq("id", eventId)
+      await supabase.rpc("mark_qr_whatsapp", {
+        p_event_id: eventId,
+        p_event_token: eventToken,
+      })
     } catch (err) {
       console.error("WhatsApp tıklaması kaydedilemedi:", err)
     }

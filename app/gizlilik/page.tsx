@@ -28,7 +28,7 @@ export default function GizlilikPage() {
           </div>
           <div>
             <h1 className="text-2xl font-black text-white">Gizlilik Politikası ve KVKK Aydınlatma Metni</h1>
-            <p className="text-af-text-secondary text-xs mt-0.5">Son Güncelleme: 7 Ağustos 2026</p>
+            <p className="text-af-text-secondary text-xs mt-0.5">Son Güncelleme: 11 Ağustos 2026</p>
           </div>
         </div>
 
@@ -36,7 +36,7 @@ export default function GizlilikPage() {
           <section className="space-y-2">
             <h2 className="text-base font-bold text-white">1. Veri Sorumlusu Kimliği</h2>
             <p>
-              AutoFlow platformu olarak, galeri sahiplerinin ve platform ziyaretçilerinin kişisel verilerinin korunmasına büyük önem veriyoruz. 6698 sayılı Kişisel Verilerin Korunması Kanunu ("KVKK") uyarınca, verileriniz işbu aydınlatma metni kapsamında işlenmektedir.
+              AutoFlow hizmetinin veri sorumlusu Abdullah Kaan Çoloğlu'dur. Galeri sahiplerinin ve platform ziyaretçilerinin kişisel verileri, 6698 sayılı Kişisel Verilerin Korunması Kanunu ("KVKK") kapsamında işlenmektedir. Veri sorumlusuna <a href="mailto:knclgl@gmail.com" className="text-af-accent underline">knclgl@gmail.com</a> adresinden ulaşabilirsiniz.
             </p>
           </section>
 
@@ -53,14 +53,14 @@ export default function GizlilikPage() {
           <section className="space-y-2">
             <h2 className="text-base font-bold text-white">3. Verilerin Saklanması ve Güvenliği</h2>
             <p>
-              Toplanan tüm kişisel verileriniz ve galeri içerikleriniz uçtan uca şifrelenmiş Supabase veritabanı altyapısında yüksek güvenlik standartları ile saklanmaktadır. Verileriniz izniniz haricinde üçüncü taraflarla reklam veya pazarlama amacıyla paylaşılmaz.
+              Kişisel verileriniz ve galeri içerikleriniz Supabase altyapısında; aktarım şifrelemesi, kimlik doğrulama ve satır seviyesinde erişim kuralları kullanılarak saklanır. Verileriniz izniniz haricinde üçüncü taraflarla reklam veya pazarlama amacıyla paylaşılmaz.
             </p>
           </section>
 
           <section className="space-y-2">
             <h2 className="text-base font-bold text-white">4. İletişim ve Haklarınız</h2>
             <p>
-              KVKK'nın 11. maddesi kapsamındaki haklarınızı kullanmak, hesabınızı ve verilerinizi tamamen silmek için <a href="mailto:destek@autoflow.com.tr" className="text-af-accent underline">destek@autoflow.com.tr</a> e-posta adresi üzerinden bizlerle 7/24 iletişime geçebilirsiniz.
+              KVKK'nın 11. maddesi kapsamındaki haklarınızı kullanmak veya hesabınızın ve verilerinizin silinmesini talep etmek için <a href="mailto:knclgl@gmail.com" className="text-af-accent underline">knclgl@gmail.com</a> e-posta adresi üzerinden iletişime geçebilirsiniz.
             </p>
           </section>
         </div>

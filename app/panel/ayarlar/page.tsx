@@ -153,31 +153,22 @@ export default function AyarlarPage() {
     try {
       const compressedBase64 = await compressLogoImage(file)
       
-      let uploadedUrl: string | null = null
-      try {
-        const fileName = `${user.id}/logo-${Date.now()}.jpg`
-        // Data URL'den Blob oluştur
-        const res = await fetch(compressedBase64)
-        const blob = await res.blob()
+      const fileName = `${user.id}/logos/logo-${Date.now()}.jpg`
+      const res = await fetch(compressedBase64)
+      const blob = await res.blob()
+      const { error: uploadErr } = await supabase.storage
+        .from("araclar")
+        .upload(fileName, blob, { contentType: "image/jpeg", upsert: false })
 
-        const { error: uploadErr } = await supabase.storage
-          .from("araclar")
-          .upload(fileName, blob, { contentType: "image/jpeg", upsert: true })
-        
-        if (!uploadErr) {
-          const { data: { publicUrl } } = supabase.storage
-            .from("araclar")
-            .getPublicUrl(fileName)
-          uploadedUrl = publicUrl
-        }
-      } catch (err) {
-        console.warn("Storage upload fallback to base64", err)
-      }
+      if (uploadErr) throw uploadErr
 
-      const finalUrl = uploadedUrl || compressedBase64
-      setProfil((prev) => ({ ...prev, logoUrl: finalUrl }))
+      const { data: { publicUrl } } = supabase.storage
+        .from("araclar")
+        .getPublicUrl(fileName)
+      setProfil((prev) => ({ ...prev, logoUrl: publicUrl }))
     } catch (err) {
       console.error("Logo işleme hatası:", err)
+      setProfilMesaj({ tip: "hata", metin: "Logo yüklenemedi. Lütfen tekrar deneyin." })
     } finally {
       setLogoUploading(false)
     }

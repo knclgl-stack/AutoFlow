@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { ArrowLeft, ChevronDown, MapPin, Clock, ExternalLink, QrCode, Sparkles, X, Send } from "lucide-react"
+import { ArrowLeft, ChevronDown, MapPin, Clock, ExternalLink, Sparkles, Send } from "lucide-react"
 import Link from "next/link"
 import { FotografGalerisi } from "@/components/autoflow/fotograf-galerisi"
 import { DurumRozeti } from "@/components/autoflow/durum-rozeti"
@@ -45,9 +45,9 @@ const SPEC_SECTIONS = [
 export function AracDetayClient({ arac, galeri }: AracDetayClientProps) {
   const [specsOpen, setSpecsOpen] = useState(false)
   const [eventId, setEventId] = useState<string | null>(null)
+  const [eventToken, setEventToken] = useState<string | null>(null)
 
   // Flow AI Chatbot States
-  const [chatOpen, setChatOpen] = useState(false)
   const [chatMessages, setChatMessages] = useState<Array<{ sender: "user" | "ai"; text: string }>>([])
   const [chatInput, setChatInput] = useState("")
   const [chatLoading, setChatLoading] = useState(false)
@@ -83,38 +83,7 @@ export function AracDetayClient({ arac, galeri }: AracDetayClientProps) {
         body: JSON.stringify({
           message: messageText,
           history: chatMessages,
-          arac: {
-            marka: arac.marka,
-            model: arac.model,
-            yil: arac.yil,
-            versiyon: arac.versiyon,
-            km: arac.km,
-            fiyat: arac.fiyat,
-            fiyat_gizle: arac.fiyat_gizle,
-            pazarlik_var: arac.pazarlik_var,
-            vites: arac.vites,
-            yakit: arac.yakit,
-            kasa_tipi: arac.kasa_tipi,
-            renk: arac.renk,
-            motor_hacmi: arac.motor_hacmi,
-            motor_gucu: arac.motor_gucu,
-            tramer_kaydi: arac.tramer_kaydi,
-            tramer_detay: arac.tramer_detay,
-            boyali_parcalar: arac.boyali_parcalar,
-            boyali_parce: (arac as any).boyali_parce,
-            boyali_parca: arac.boyali_parca,
-            agir_hasar_kaydi: arac.agir_hasar_kaydi,
-            ozellikler: arac.ozellikler,
-            aciklama: arac.aciklama,
-          },
-          galeri: {
-            galeri_adi: (galeri as any).galeri_adi,
-            ad: galeri.ad,
-            adres: galeri.adres,
-            sehir: galeri.sehir,
-            telefon: galeri.telefon,
-            calisma_saatleri: galeri.calisma_saatleri,
-          },
+          aracId: arac.id,
         }),
       })
 
@@ -160,18 +129,14 @@ export function AracDetayClient({ arac, galeri }: AracDetayClientProps) {
         if (!isUuid) return
 
         const supabase = createClient()
-        const { data, error } = await supabase
-          .from("qr_events")
-          .insert({
-            arac_id: arac.id,
-            device_type: deviceType,
-            whatsapp_tiklamasi: false,
-          })
-          .select("id")
-          .single()
+        const { data, error } = await supabase.rpc("register_qr_event", {
+          p_arac_id: arac.id,
+          p_device_type: deviceType,
+        })
 
         if (data && !error) {
           setEventId(data.id)
+          setEventToken(data.token)
         } else if (error) {
           console.error("QR okutma loglanamadı:", error)
         }
@@ -200,9 +165,7 @@ export function AracDetayClient({ arac, galeri }: AracDetayClientProps) {
           <ArrowLeft className="w-4 h-4 text-af-text-secondary" />
         </Link>
         <span className="font-semibold text-af-text text-sm truncate max-w-[200px]">{arac.marka} {arac.model}</span>
-        <Link href={`/panel/qr?arac=${arac.id}`} className="w-9 h-9 rounded-full bg-af-surface border border-af-border flex items-center justify-center hover:border-af-accent/40 transition-colors">
-          <QrCode className="w-4 h-4 text-af-text-secondary" />
-        </Link>
+        <div className="w-9" aria-hidden="true" />
       </div>
 
       <div className="max-w-lg mx-auto">
@@ -249,7 +212,7 @@ export function AracDetayClient({ arac, galeri }: AracDetayClientProps) {
           </div>
 
           {/* FLOW AI INLINE CHATBOX */}
-          {arac.durum !== "Satildi" && (
+          {arac.durum !== "Satildi" && galeri.plan !== "Essential" && (
             <div className="mt-5 bg-af-surface border border-af-border rounded-2xl overflow-hidden flex flex-col shadow-lg shadow-black/10">
               {/* Header */}
               <div className="bg-gradient-to-r from-af-accent/20 to-purple-600/10 px-4.5 py-3 border-b border-af-border flex items-center justify-between">
@@ -488,14 +451,14 @@ export function AracDetayClient({ arac, galeri }: AracDetayClientProps) {
           {arac.durum === "Satildi" && (
             <div className="mt-5 p-4 bg-af-surface rounded-2xl border border-af-border">
               <p className="text-sm text-af-text-secondary mb-3">Bu araç satılmış olsa da benzer araçlar için galeri ile iletişime geçebilirsiniz.</p>
-              <IletisimButonlari arac={arac} galeri={galeri} variant="inline" eventId={eventId} />
+              <IletisimButonlari arac={arac} galeri={galeri} variant="inline" eventId={eventId} eventToken={eventToken} />
             </div>
           )}
           <div className="h-24" />
         </div>
       </div>
 
-      {arac.durum !== "Satildi" && <IletisimButonlari arac={arac} galeri={galeri} variant="sticky" eventId={eventId} />}
+      {arac.durum !== "Satildi" && <IletisimButonlari arac={arac} galeri={galeri} variant="sticky" eventId={eventId} eventToken={eventToken} />}
 
 
     </div>

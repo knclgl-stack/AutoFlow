@@ -12,7 +12,7 @@ export function AfLogo({ variant = "full", className = "", size = 40 }: AfLogoPr
     return (
       <div className={`relative flex-shrink-0 overflow-hidden ${className}`} style={{ width: size * 5, height: size * 1.5 }}>
         <Image
-          src="/autoflow-logo-navbar.png?v=2"
+          src="/autoflow-logo-navbar.png"
           alt="AutoFlow"
           fill
           className="object-contain object-left scale-[2.8] origin-left"
@@ -27,7 +27,7 @@ export function AfLogo({ variant = "full", className = "", size = 40 }: AfLogoPr
     return (
       <div className={`relative flex-shrink-0 overflow-hidden ${className}`} style={{ width: size, height: size }}>
         <Image
-          src="/autoflow-logo.png?v=2"
+          src="/autoflow-logo.png"
           alt="AutoFlow"
           fill
           className="object-contain scale-[1.7]"
@@ -41,7 +41,7 @@ export function AfLogo({ variant = "full", className = "", size = 40 }: AfLogoPr
   return (
     <div className={`relative overflow-hidden ${className}`} style={{ width: size * 4, height: size * 2.2 }}>
       <Image
-        src="/autoflow-logo.png?v=2"
+        src="/autoflow-logo.png"
         alt="AutoFlow"
         fill
         className="object-contain scale-[1.7]"

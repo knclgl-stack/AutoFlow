@@ -14,7 +14,7 @@ export default async function GaleriPage({ params }: PageProps) {
 
   // 1. Slug'a göre galeriyi getir
   const { data: galeri, error: galeriError } = await supabase
-    .from("galeri_profilleri")
+    .from("galeri_profilleri_public")
     .select("*")
     .eq("slug", slug)
     .single()
@@ -25,7 +25,7 @@ export default async function GaleriPage({ params }: PageProps) {
 
   // 2. Galerinin araçlarını getir
   const { data: araclar, error: araclarError } = await supabase
-    .from("araclar")
+    .from("araclar_public")
     .select("*")
     .eq("user_id", galeri.user_id)
     .order("created_at", { ascending: false })

@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
 import { createClient } from "@/lib/supabase/client"
 import Link from "next/link"
+import type { AiKotaDurumu } from "@/lib/types"
 
 /* ─────────────────────────────────────────────
    TYPES
@@ -565,10 +566,10 @@ async function createStudioComposite(transparentCarUrl: string, config: Showroom
         }
       }
 
-      let normMinX = foundPixels ? minX / scanW : 0.15
-      let normMaxX = foundPixels ? maxX / scanW : 0.85
-      let normMinY = foundPixels ? minY / scanH : 0.25
-      let normMaxY = foundPixels ? maxY / scanH : 0.75
+      const normMinX = foundPixels ? minX / scanW : 0.15
+      const normMaxX = foundPixels ? maxX / scanW : 0.85
+      const normMinY = foundPixels ? minY / scanH : 0.25
+      const normMaxY = foundPixels ? maxY / scanH : 0.75
 
       const carW = (normMaxX - normMinX) * W
       const carH = (normMaxY - normMinY) * H
@@ -943,6 +944,7 @@ export default function FlowAiPage() {
   const { user } = useAuth()
   const supabase = createClient()
   const [dbPlan, setDbPlan] = useState("Essential")
+  const [aiQuota, setAiQuota] = useState<AiKotaDurumu | null>(null)
   const [dealerName, setDealerName] = useState<string>("AUTOFLOW")
   const [dealerLogoUrl, setDealerLogoUrl] = useState<string | null>(null)
 
@@ -961,8 +963,6 @@ export default function FlowAiPage() {
 
   /* --- Chat AI State --- */
   const [isTyping, setIsTyping] = useState(false)
-  const [userApiKey, setUserApiKey] = useState("")
-  const [showApiKeyInput, setShowApiKeyInput] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [activeLightboxImage, setActiveLightboxImage] = useState<string | null>(null)
   const [processingStep, setProcessingStep] = useState(0)
@@ -1004,6 +1004,9 @@ export default function FlowAiPage() {
         if (data.galeri_adi) setDealerName(data.galeri_adi)
         if (data.logo_url) setDealerLogoUrl(data.logo_url)
       }
+
+      const { data: quotaData } = await supabase.rpc("get_ai_quota_status")
+      if (quotaData) setAiQuota(quotaData as AiKotaDurumu)
     }
     planYukle()
   }, [user])
@@ -1011,9 +1014,9 @@ export default function FlowAiPage() {
   // İlk karşılama mesajı (Plan bilgisi yüklendikten sonra)
   useEffect(() => {
     const planText = dbPlan === "Elite" 
-      ? "👑 Elite öncelikli işlem modunuz aktif! Sınırsız stüdyo ve sıfır bekleme süresinin keyfini çıkarın."
+      ? "👑 Elite planınız aktif. Aylık 500 Flow AI işlemini kullanabilirsiniz."
       : dbPlan === "Professional" 
-        ? "★ Professional paketiniz aktif. Sınırsız ücretsiz stüdyo kullanımı ve akıllı şablonlar emrinizde!"
+        ? "★ Professional planınız aktif. Aylık 150 Flow AI işlemini kullanabilirsiniz."
         : "💡 Essentials planındasınız. Bu pakette Flow AI özellikleri devre dışıdır. Kullanmak için lütfen planınızı yükseltin."
 
     setMesajlar([
@@ -1073,7 +1076,7 @@ export default function FlowAiPage() {
         setProcessingStep(30)
         setProcessingLabel("Yapay zeka stüdyo motoru indiriliyor...")
         
-        const imgly = await eval("import('https://cdn.jsdelivr.net/npm/@imgly/background-removal/+esm')")
+        const imgly = await import("@imgly/background-removal")
         
         setProcessingStep(55)
         setProcessingLabel("Araç hatları maskeleniyor ve arka plan siliniyor...")
@@ -1137,7 +1140,6 @@ Kurallar:
               body: JSON.stringify({
                 message: aiPrompt,
                 history: [],
-                apiKey: userApiKey || undefined,
                 image: {
                   mimeType,
                   data: base64Data
@@ -1146,6 +1148,7 @@ Kurallar:
             })
 
             const data = await res.json()
+            if (data.quota) setAiQuota((current) => current ? { ...current, used: data.quota.used, limit: data.quota.limit } : null)
             if (res.ok && data.reply) {
               let replyText = data.reply.trim()
               if (replyText.startsWith("```json")) replyText = replyText.substring(7)
@@ -1383,7 +1386,6 @@ JSON Formatı:
         body: JSON.stringify({
           message: systemPrompt,
           history: [],
-          apiKey: userApiKey || undefined,
           image: downsizedImageBase64 ? {
             mimeType: downsizedImageBase64.split(";")[0].split(":")[1],
             data: downsizedImageBase64.split(",")[1]
@@ -1391,6 +1393,7 @@ JSON Formatı:
         })
       })
       const data = await res.json()
+      if (data.quota) setAiQuota((current) => current ? { ...current, used: data.quota.used, limit: data.quota.limit } : null)
       
       if (!res.ok || data.error) {
         throw new Error(data.error || "Gemini API hatası")
@@ -1529,9 +1532,10 @@ JSON Formatı:
       const res = await fetch("/api/flow-ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, history, apiKey: userApiKey || undefined })
+        body: JSON.stringify({ message: text, history })
       })
       const data = await res.json()
+      if (data.quota) setAiQuota((current) => current ? { ...current, used: data.quota.used, limit: data.quota.limit } : null)
       setMesajlar(prev => prev.map(m =>
         m.id === typingId
           ? { ...m, text: data.reply || data.error || "Bir hata oluştu.", isTyping: false, isError: !!data.error }
@@ -1578,7 +1582,7 @@ JSON Formatı:
               <div className="space-y-2">
                 <h2 className="text-xl font-black text-white">Flow AI Akıllı Stüdyo</h2>
                 <p className="text-sm text-af-text-secondary leading-relaxed">
-                  Araç fotoğraflarınızı yapay zeka ile otomatik temizleyip profesyonel stüdyo ortamına yerleştiren Flow AI, sadece **Professional** ve **Elite** paketlerinde mevcuttur.
+                  Araç fotoğraflarınızı yapay zeka ile otomatik temizleyip profesyonel stüdyo ortamına yerleştiren Flow AI, yalnızca Professional ve Elite planlarında kullanılabilir.
                 </p>
               </div>
               <div className="bg-af-surface-2/60 border border-af-border rounded-xl p-4 text-xs text-af-text-disabled text-left space-y-1.5">
@@ -1616,6 +1620,11 @@ JSON Formatı:
             </div>
 
             <div className="flex items-center gap-2">
+              {aiQuota && aiQuota.limit > 0 && (
+                <span className="rounded-lg border border-af-border bg-af-surface-2 px-2.5 py-1.5 text-[10px] font-bold text-af-text-secondary">
+                  AI Kotası {aiQuota.used}/{aiQuota.limit}
+                </span>
+              )}
               {uploadedImage && (
                 <button
                   onClick={() => {
@@ -1639,34 +1648,8 @@ JSON Formatı:
                 </button>
               )}
 
-              <button
-                onClick={() => setShowApiKeyInput(p => !p)}
-                title="API Anahtarı Gir"
-                className="w-8 h-8 rounded-xl bg-af-surface-2 border border-af-border text-af-text-disabled hover:text-af-accent hover:border-af-accent/30 flex items-center justify-center transition-colors text-xs"
-              >
-                🔑
-              </button>
             </div>
           </div>
-
-          {/* API Key input box */}
-          {showApiKeyInput && (
-            <div className="p-3 border-b border-af-border bg-af-surface-2/20 flex gap-2 animate-in slide-in-from-top-2 duration-300">
-              <input
-                type="password"
-                placeholder="Gemini API Key (AIza...)"
-                value={userApiKey}
-                onChange={e => setUserApiKey(e.target.value)}
-                className="flex-1 bg-af-surface border border-af-border text-white text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-af-accent placeholder:text-af-text-disabled"
-              />
-              <button
-                onClick={() => setShowApiKeyInput(false)}
-                className="text-xs bg-af-accent text-white px-3 py-2 rounded-xl font-bold hover:bg-af-accent-hover transition-colors"
-              >
-                Kaydet
-              </button>
-            </div>
-          )}
 
           {/* Mesaj Listesi */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
