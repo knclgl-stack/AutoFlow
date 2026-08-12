@@ -1000,10 +1000,10 @@ export function AdminClient({
                           {getVehicleCount(gal.user_id)}
                         </td>
                         <td className="p-4 text-af-text-secondary">
-                          {currentPlan === "Elite" ? "Sınırsız İlan" : currentPlan === "Professional" ? "Maks. 10 İlan" : "Araç Başı"}
+                          {currentPlan === "Elite" ? "Sınırsız İlan" : currentPlan === "Professional" ? "Maks. 30 İlan" : "Maks. 3 İlan"}
                         </td>
                         <td className="p-4 text-white font-bold">
-                          {currentPlan === "Elite" ? "5.000 ₺ / Ay" : currentPlan === "Professional" ? "3.000 ₺ / Ay" : "200 ₺ / İlan"}
+                          {currentPlan === "Elite" ? "4.990 ₺ / Ay" : currentPlan === "Professional" ? "2.990 ₺ / Ay" : "Ücretsiz"}
                         </td>
                         <td className="p-4 text-right">
                           <select
@@ -1012,9 +1012,9 @@ export function AdminClient({
                             onChange={(e) => handleChangePlan(gal.user_id, e.target.value)}
                             className="bg-af-surface-2 border border-af-border text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors focus:outline-none focus:border-af-accent cursor-pointer disabled:opacity-50"
                           >
-                            <option value="Essential">Essential (200₺ / İlan)</option>
-                            <option value="Professional">Professional (3.000₺ / 10 İlan)</option>
-                            <option value="Elite">Elite (5.000₺ / Sınırsız)</option>
+                            <option value="Essential">Essential (Ücretsiz / 3 İlan)</option>
+                            <option value="Professional">Professional (2.990₺ / 30 İlan)</option>
+                            <option value="Elite">Elite (4.990₺ / Sınırsız)</option>
                           </select>
                         </td>
                       </tr>

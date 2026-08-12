@@ -323,7 +323,7 @@ BEGIN
 
   vehicle_limit := CASE current_plan
     WHEN 'Essential' THEN 3
-    WHEN 'Professional' THEN 12
+    WHEN 'Professional' THEN 30
     WHEN 'Elite' THEN NULL
     ELSE 3
   END;

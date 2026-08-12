@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
 import { createClient } from "@/lib/supabase/client"
 import { ArabaKrokisi } from "@/components/autoflow/araba-krokisi"
+import { getVehicleLimit, normalizePlan } from "@/lib/plans"
 import html2canvas from "html2canvas"
 
 const ADIMLAR = [
@@ -302,38 +303,23 @@ export default function YeniAracPage() {
         .eq("user_id", user.id)
         .single()
 
-      const userPlan = (profile?.plan || "essentials").toLowerCase()
+      const userPlan = normalizePlan(profile?.plan)
       if (profile?.galeri_adi) setGaleriAdi(profile.galeri_adi)
 
-      // Essentials plan: maksimum 3 araç
-      if (userPlan === "essentials" || userPlan === "essential") {
+      const vehicleLimit = getVehicleLimit(userPlan)
+      if (vehicleLimit !== null) {
         const { count, error: countErr } = await supabase
           .from("araclar")
           .select("id", { count: "exact", head: true })
           .eq("user_id", user.id)
 
-        if (!countErr && count !== null && count >= 3) {
+        if (!countErr && count !== null && count >= vehicleLimit) {
+          const planLabel = userPlan === "Essential" ? "Ücretsiz" : "Professional"
           throw new Error(
-            "Ücretsiz planda maksimum 3 araç ekleyebilirsiniz. Daha fazla araç eklemek için Professional veya Elite planına geçin."
+            `${planLabel} planda maksimum ${vehicleLimit} araç ekleyebilirsiniz. Daha fazla araç için bir üst plana geçin.`
           )
         }
       }
-
-      // Professional plan: maksimum 12 araç
-      if (userPlan === "professional") {
-        const { count, error: countErr } = await supabase
-          .from("araclar")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", user.id)
-
-        if (!countErr && count !== null && count >= 12) {
-          throw new Error(
-            "Professional planda maksimum 12 araç ekleyebilirsiniz. Sınırsız araç için Elite planına geçin."
-          )
-        }
-      }
-
-      // Elite plan: sınırsız — limit kontrolü yok
 
       // Benzersiz bir qr_slug üret (örn: af-491295)
       const randomId = Math.floor(100000 + Math.random() * 900000)

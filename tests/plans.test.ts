@@ -10,7 +10,7 @@ test("plan names are normalized safely", () => {
 
 test("vehicle and AI limits match the commercial plans", () => {
   assert.equal(getVehicleLimit("Essential"), 3)
-  assert.equal(getVehicleLimit("Professional"), 12)
+  assert.equal(getVehicleLimit("Professional"), 30)
   assert.equal(getVehicleLimit("Elite"), null)
   assert.equal(getAiMonthlyLimit("Essential"), 0)
   assert.equal(getAiMonthlyLimit("Professional"), 150)

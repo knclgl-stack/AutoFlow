@@ -24,6 +24,30 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "yearly",
       priority: 0.2,
     },
+    {
+      url: `${SITE_URL}/demo`,
+      lastModified: new Date("2026-08-12"),
+      changeFrequency: "weekly",
+      priority: 0.9,
+    },
+    {
+      url: `${SITE_URL}/iletisim`,
+      lastModified: new Date("2026-08-12"),
+      changeFrequency: "yearly",
+      priority: 0.5,
+    },
+    {
+      url: `${SITE_URL}/kullanim-kosullari`,
+      lastModified: new Date("2026-08-12"),
+      changeFrequency: "yearly",
+      priority: 0.2,
+    },
+    {
+      url: `${SITE_URL}/cerez-politikasi`,
+      lastModified: new Date("2026-08-12"),
+      changeFrequency: "yearly",
+      priority: 0.2,
+    },
   ]
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL

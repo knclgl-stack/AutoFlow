@@ -3,9 +3,9 @@ export const SITE_URL = (
   process.env.NEXT_PUBLIC_SITE_URL || "https://auto-flow-mu.vercel.app"
 ).replace(/\/$/, "")
 
-export const SITE_TITLE = "AutoFlow | Galeriler İçin QR Kodlu Dijital Araç Vitrini"
+export const SITE_TITLE = "AutoFlow | Galeriler İçin AI Destekli QR Araç Vitrini"
 export const SITE_DESCRIPTION =
-  "Araç galerinizi QR kodlarla dijitalleştirin. Müşteriler araç bilgilerine, fotoğraflara ve WhatsApp iletişimine uygulama indirmeden ulaşsın."
+  "Araçlarınızı QR kodla yayınlayın; Flow AI ile fotoğrafları iyileştirin, araç sorularını yanıtlayın ve galerinizi 7/24 dijital vitrinde tutun."
 
 export function absoluteUrl(path = "/") {
   return new URL(path, `${SITE_URL}/`).toString()

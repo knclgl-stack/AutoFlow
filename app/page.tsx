@@ -15,9 +15,9 @@ import { cn } from "@/lib/utils"
 
 const ISTATISTIKLER = [
   { sayi: "3", etiket: "Essentials Araç Kotası", icon: Car },
+  { sayi: "30", etiket: "Professional Araç Kotası", icon: Car },
   { sayi: "150", etiket: "Professional AI / Ay", icon: Sparkles },
   { sayi: "500", etiket: "Elite AI / Ay", icon: Zap },
-  { sayi: "7/24", etiket: "Dijital Vitrin", icon: Clock },
 ]
 
 const SENARYOLAR = [
@@ -90,15 +90,52 @@ const FAYDALAR = [
   },
 ]
 
-/* Karşılaştırma - Anchoring & Loss Aversion */
-const KARSILASTIRMA = [
-  { ozellik: "Araç bilgi sayfası", eski: false, yeni: true },
-  { ozellik: "QR kod ile anında erişim", eski: false, yeni: true },
-  { ozellik: "WhatsApp entegrasyonu", eski: false, yeni: true },
-  { ozellik: "Anlık görüntülenme analitiki", eski: false, yeni: true },
-  { ozellik: "AI fotoğraf stüdyosu", eski: false, yeni: true },
-  { ozellik: "Araç bilgisine erişim", eski: "Personele bağlı", yeni: "QR ile 7/24" },
-  { ozellik: "Dijital vitrin", eski: "Harici platforma bağlı", yeni: "Kendi galeri sayfanız" },
+const PAKETLER = [
+  {
+    id: "essentials",
+    ad: "Essentials",
+    fiyat: "Ücretsiz",
+    renk: "border-af-border",
+    badge: null,
+    arac: "3 araç",
+    aciklama: "QR vitrini risksiz deneyin",
+    ozellikler: ["Galeri ve araç sayfaları", "Araca özel QR kod", "Temel QR görüntülenme sayacı"],
+    cta: "Hemen Başla",
+    ctaClass: "bg-af-surface-2 hover:bg-af-border border border-af-border text-white",
+  },
+  {
+    id: "professional",
+    ad: "Professional",
+    fiyat: "₺2.990",
+    renk: "border-af-accent/60 ring-2 ring-af-accent/20",
+    badge: "⭐ En Popüler",
+    arac: "30 araç",
+    aciklama: "AI ile satış kalitesini yükseltin",
+    ozellikler: ["Ayda 150 Flow AI işlemi", "Araç sayfasında AI danışmanı", "Gelişmiş analitik ve raporlar"],
+    cta: "Professional Seç",
+    ctaClass: "bg-af-accent hover:bg-af-accent-hover text-white shadow-xl shadow-af-accent/25",
+  },
+  {
+    id: "elite",
+    ad: "Elite",
+    fiyat: "₺4.990",
+    renk: "border-amber-500/40",
+    badge: "👑 Elite",
+    arac: "Sınırsız araç",
+    aciklama: "Yüksek stoklu galeriler için",
+    ozellikler: ["Ayda 500 Flow AI işlemi", "Elite galeri kimliği", "Öncelikli destek"],
+    cta: "Elite Seç",
+    ctaClass: "bg-amber-500 hover:bg-amber-400 text-black font-black shadow-xl shadow-amber-500/20",
+  },
+]
+
+const PLAN_KARSILASTIRMA = [
+  { ozellik: "Araç ilanı", essentials: "3", professional: "30", elite: "Sınırsız" },
+  { ozellik: "QR kod ve dijital vitrin", essentials: "Dahil", professional: "Dahil", elite: "Dahil" },
+  { ozellik: "Flow AI Fotoğraf Stüdyosu", essentials: "—", professional: "150 / ay", elite: "500 / ay" },
+  { ozellik: "Araç sayfasında AI danışmanı", essentials: "—", professional: "Dahil", elite: "Dahil" },
+  { ozellik: "Gelişmiş analitik", essentials: "—", professional: "Dahil", elite: "Dahil" },
+  { ozellik: "Destek", essentials: "Standart", professional: "Standart", elite: "Öncelikli" },
 ]
 
 /* SSS - Objection Handling (İtiraz Karşılama) */
@@ -213,7 +250,8 @@ export default function LandingPage() {
           <div className="hidden md:flex items-center gap-6 text-sm text-af-text-secondary">
             <a href="#ozellikler" className="hover:text-white transition-colors">Özellikler</a>
             <a href="#fiyatlar" className="hover:text-white transition-colors">Fiyatlar</a>
-            <a href="#senaryolar" className="hover:text-white transition-colors">Kullanım</a>
+            <Link href="/demo" className="hover:text-white transition-colors">Canlı Demo</Link>
+            <Link href="/iletisim" className="hover:text-white transition-colors">İletişim</Link>
           </div>
           <div className="flex items-center gap-3">
             {user ? (
@@ -252,25 +290,25 @@ export default function LandingPage() {
         <div className="relative z-10 text-center max-w-4xl mx-auto px-5 py-20">
 
           <div className="inline-flex items-center gap-2 bg-af-accent/10 border border-af-accent/25 text-af-accent text-sm px-4 py-2 rounded-full mb-8">
-            <QrCode className="w-4 h-4" />
-            <span className="font-semibold">Galeriler için QR destekli dijital vitrin</span>
+            <Sparkles className="w-4 h-4" />
+            <span className="font-semibold">Galeriler için AI destekli QR dijital vitrini</span>
           </div>
 
           {/* Ana başlık — Problem-Agitate-Solution (PAS) */}
           <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black leading-[1.05] mb-6 tracking-tight">
-            Müşteriniz Arabayı Gördü,{" "}
-            <span className="text-af-accent">Bilgiye Ulaşamadı</span>{" "}
-            ve Gitti.
+            QR ile Yayınlayın.{" "}
+            <span className="text-af-accent">Flow AI ile</span>{" "}
+            Satışa Hazırlayın.
           </h1>
 
           {/* Acı noktası */}
           <p className="text-af-text-secondary text-lg sm:text-xl max-w-2xl mx-auto mb-4 leading-relaxed">
-            AutoFlow QR ile müşteriniz uygulama indirmeden yayınladığınız araç bilgilerine ulaşır ve WhatsApp üzerinden sizinle iletişim kurar.
+            Araçlarınızı kendi dijital vitrininizde yayınlayın, QR ile müşteriye ulaştırın; Flow AI ile fotoğrafları iyileştirin ve araç sorularını 7/24 yanıtlayın.
           </p>
 
           {/* Değer önerisi özeti */}
           <div className="flex flex-wrap justify-center gap-3 mb-10">
-            {["Uygulama indirmez", "Kolay kurulum", "Kredi kartı yok", "3 araç ücretsiz"].map(t => (
+            {["3 araç kalıcı ücretsiz", "AI fotoğraf stüdyosu", "AI araç danışmanı", "Kredi kartı gerekmez"].map(t => (
               <span key={t} className="flex items-center gap-1.5 text-xs font-semibold text-af-text-secondary bg-af-surface border border-af-border px-3 py-1.5 rounded-full">
                 <CheckCircle className="w-3.5 h-3.5 text-af-success" /> {t}
               </span>
@@ -286,13 +324,13 @@ export default function LandingPage() {
               {ctaText}
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </Link>
-            <a
-              href="#nasil-calisir"
-              className="flex items-center gap-2 text-af-text-secondary hover:text-white text-sm font-semibold transition-colors"
+            <Link
+              href="/demo"
+              className="flex items-center gap-2 rounded-2xl border border-af-border bg-af-surface/70 px-7 py-4 text-sm font-bold text-af-text-secondary transition-all hover:border-af-accent/40 hover:text-white"
             >
-              Nasıl çalışır?
+              Canlı Demoyu İncele
               <ChevronRight className="w-4 h-4" />
-            </a>
+            </Link>
           </div>
 
           {/* Micro-text: Güven artırıcı */}
@@ -334,7 +372,7 @@ export default function LandingPage() {
               <span className="text-af-accent">Erişilebilir</span>
             </h2>
             <p className="text-af-text-secondary max-w-xl mx-auto text-sm leading-relaxed">
-              AutoFlow, vitrindeki QR kodu ile araç bilgilerini, galeri iletişim bilgilerini ve WhatsApp bağlantısını tek sayfada birleştirir.
+              AutoFlow; QR kodunu, galeri iletişimini, araç detaylarını ve Flow AI satış araçlarını tek deneyimde birleştirir.
             </p>
           </div>
 
@@ -360,7 +398,7 @@ export default function LandingPage() {
                 <span className="w-2 h-2 rounded-full bg-af-accent animate-pulse" /> AutoFlow ile
               </h3>
               <ul className="space-y-3">
-                {["Müşteri QR okutarak yayınlanan bilgilere ulaşır", "Fiyatı panelden güncelleyebilirsiniz", "Her araç için görüntülenme ve tıklama analitiği", "Uygun planlarda Flow AI fotoğraf araçları", "7/24 erişilebilen dijital galeri sayfası"].map(m => (
+                {["Müşteri QR okutarak yayınlanan bilgilere ulaşır", "Flow AI fotoğrafı showroom kalitesine taşır", "AI danışmanı araç sorularını 7/24 yanıtlar", "Her araç için görüntülenme ve tıklama analitiği", "Fiyat ve stok bilgisi panelden güncellenir"].map(m => (
                   <li key={m} className="flex items-start gap-2.5 text-sm text-af-text">
                     <CheckCircle className="w-4 h-4 text-af-success flex-shrink-0 mt-0.5" />
                     {m}
@@ -419,8 +457,8 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-14">
             <span className="text-xs uppercase font-bold tracking-wider text-af-accent mb-3 block">Neden AutoFlow?</span>
-            <h2 className="text-3xl sm:text-4xl font-black mb-3">Her Araç, Sizin İçin Çalışır</h2>
-            <p className="text-af-text-secondary max-w-xl mx-auto text-sm">Galeriniz artık 24 saat müşteri karşılar — siz orada olsanız da olmasanız da.</p>
+            <h2 className="text-3xl sm:text-4xl font-black mb-3">QR’ın Ötesinde: AI Destekli Satış Deneyimi</h2>
+            <p className="text-af-text-secondary max-w-xl mx-auto text-sm">Galeriniz 24 saat müşteri karşılar; Flow AI fotoğraf kalitesini ve araç iletişimini güçlendirir.</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {FAYDALAR.map((f) => {
@@ -469,18 +507,14 @@ export default function LandingPage() {
           Prensip: Decoy Effect (orta plan vurgulama) + Anchoring
       ══════════════════════════════════════════════════════════════ */}
       <section id="fiyatlar" className="py-20 px-5">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-6xl mx-auto">
           <div className="text-center mb-14">
             <span className="text-xs uppercase font-bold tracking-wider text-af-accent mb-3 block">Şeffaf Fiyatlandırma</span>
             <h2 className="text-3xl sm:text-4xl font-black mb-3">Galerinizin Büyüklüğüne Göre Seçin</h2>
-            <p className="text-af-text-secondary text-sm">Her plan kendi boyutundaki galeri için optimize edilmiştir. Sürprize yer yok.</p>
+            <p className="text-af-text-secondary text-sm">Ücretsiz başlayın; stok ve AI ihtiyacınız büyüdüğünde planınızı yükseltin.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {[
-              { id: "essentials", ad: "Essentials", fiyat: "Ücretsiz", renk: "border-af-border", badge: null, araç: "3 araç", cta: "Hemen Başla", ctaClass: "bg-af-surface-2 hover:bg-af-border border border-af-border text-white" },
-              { id: "professional", ad: "Professional", fiyat: "₺2.990", renk: "border-af-accent/60 ring-2 ring-af-accent/20", badge: "⭐ En Popüler", araç: "12 araç", cta: "Professional Seç", ctaClass: "bg-af-accent hover:bg-af-accent-hover text-white shadow-xl shadow-af-accent/25" },
-              { id: "elite", ad: "Elite", fiyat: "₺4.990", renk: "border-amber-500/40", badge: "👑 Elit", araç: "Sınırsız araç", cta: "Elite Seç", ctaClass: "bg-amber-500 hover:bg-amber-400 text-black font-black shadow-xl shadow-amber-500/20" },
-            ].map((p) => (
+            {PAKETLER.map((p) => (
               <div key={p.id} className={cn("relative rounded-2xl border-2 bg-af-surface p-6 flex flex-col", p.renk)}>
                 {p.badge && (
                   <div className={cn("absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full",
@@ -489,12 +523,43 @@ export default function LandingPage() {
                 )}
                 <h3 className="font-black text-white text-lg mb-1">{p.ad}</h3>
                 <div className="text-3xl font-black text-white mb-1">{p.fiyat}<span className="text-sm font-normal text-af-text-secondary">{p.fiyat !== "Ücretsiz" ? " /ay" : ""}</span></div>
-                <p className="text-xs text-af-text-disabled mb-4">{p.araç}</p>
+                <p className="text-xs font-bold text-af-accent">{p.arac}</p>
+                <p className="mt-2 text-xs text-af-text-disabled">{p.aciklama}</p>
+                <ul className="my-5 space-y-2.5">
+                  {p.ozellikler.map((ozellik) => (
+                    <li key={ozellik} className="flex items-start gap-2 text-sm text-af-text-secondary">
+                      <CheckCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-af-success" /> {ozellik}
+                    </li>
+                  ))}
+                </ul>
                 <Link href={ctaHref} className={cn("w-full py-3 rounded-xl text-sm font-bold text-center transition-all mt-auto", p.ctaClass)}>
                   {p.cta}
                 </Link>
               </div>
             ))}
+          </div>
+
+          <div className="mt-10 overflow-x-auto rounded-2xl border border-af-border bg-af-surface">
+            <table className="w-full min-w-[720px] text-left text-sm">
+              <thead className="border-b border-af-border bg-af-surface-2/50 text-white">
+                <tr>
+                  <th className="p-4 font-bold">Özellik</th>
+                  <th className="p-4 font-bold">Essentials</th>
+                  <th className="p-4 font-bold text-af-accent">Professional</th>
+                  <th className="p-4 font-bold text-amber-400">Elite</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-af-border">
+                {PLAN_KARSILASTIRMA.map((satir) => (
+                  <tr key={satir.ozellik}>
+                    <td className="p-4 font-medium text-white">{satir.ozellik}</td>
+                    <td className="p-4 text-af-text-secondary">{satir.essentials}</td>
+                    <td className="p-4 text-af-text-secondary">{satir.professional}</td>
+                    <td className="p-4 text-af-text-secondary">{satir.elite}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
           <p className="text-center text-xs text-af-text-disabled mt-5">Ücretli plan talepleri havale bilgileriyle alınır ve yönetici onayından sonra aktive edilir.</p>
         </div>
@@ -566,13 +631,18 @@ export default function LandingPage() {
             <div className="flex gap-6 text-sm text-af-text-disabled">
               <a href="#ozellikler" className="hover:text-white transition-colors">Özellikler</a>
               <a href="#fiyatlar" className="hover:text-white transition-colors">Fiyatlar</a>
-              <a href="#senaryolar" className="hover:text-white transition-colors">Kullanım</a>
+              <Link href="/demo" className="hover:text-white transition-colors">Demo</Link>
+              <Link href="/iletisim" className="hover:text-white transition-colors">İletişim</Link>
               <Link href="/giris" className="hover:text-white transition-colors">Giriş Yap</Link>
             </div>
           </div>
           <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-6 border-t border-af-border">
-            <p className="text-af-text-disabled text-xs">© 2026 AutoFlow · Araç satış galerilerine özel dijital çözümler</p>
-            <p className="text-af-text-disabled text-xs">Türkiye'de üretildi 🇹🇷</p>
+            <p className="text-af-text-disabled text-xs">© 2026 AutoFlow · AI destekli dijital araç vitrini</p>
+            <div className="flex flex-wrap justify-center gap-4 text-xs text-af-text-disabled">
+              <Link href="/gizlilik" className="hover:text-white">Gizlilik ve KVKK</Link>
+              <Link href="/kullanim-kosullari" className="hover:text-white">Kullanım Koşulları</Link>
+              <Link href="/cerez-politikasi" className="hover:text-white">Çerez Politikası</Link>
+            </div>
           </div>
         </div>
       </footer>

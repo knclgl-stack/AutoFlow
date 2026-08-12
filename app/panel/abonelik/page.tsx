@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
 import { createClient } from "@/lib/supabase/client"
 import type { PlanTalebi } from "@/lib/types"
-import { normalizePlan } from "@/lib/plans"
+import { getVehicleLimit, normalizePlan } from "@/lib/plans"
 
 const HAVALE_ALICI = process.env.NEXT_PUBLIC_HAVALE_ALICI || "Alıcı tanımlanmadı"
 const HAVALE_IBAN = process.env.NEXT_PUBLIC_HAVALE_IBAN || "IBAN tanımlanmadı"
@@ -63,7 +63,7 @@ const PLANLAR = [
     iconBg: "bg-af-accent/10",
     badge: "En Popüler",
     ozellikler: [
-      { text: "12 araç ilanı", aktif: true },
+      { text: "30 araç ilanı", aktif: true },
       { text: "Profesyonel galeri profili sayfası", aktif: true },
       { text: "QR kod oluşturma", aktif: true },
       { text: "AutoFlow markası kaldırılır", aktif: true },
@@ -157,7 +157,7 @@ export default function AbonelikPage() {
     abonelikYukle()
   }, [user])
 
-  const maxArac = aktifPlan === "essentials" ? 3 : aktifPlan === "professional" ? 12 : 999999
+  const maxArac = getVehicleLimit(aktifPlan) ?? 999999
   const secilenPlanBilgi = PLANLAR.find(p => p.id === seciliPlan)
 
   function planSec(planId: string) {

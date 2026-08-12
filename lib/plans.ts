@@ -2,7 +2,7 @@ import type { AbonelikPlani } from "@/lib/types"
 
 export const PLAN_LIMITS: Record<AbonelikPlani, { vehicles: number | null; aiMonthly: number }> = {
   Essential: { vehicles: 3, aiMonthly: 0 },
-  Professional: { vehicles: 12, aiMonthly: 150 },
+  Professional: { vehicles: 30, aiMonthly: 150 },
   Elite: { vehicles: null, aiMonthly: 500 },
 }
 

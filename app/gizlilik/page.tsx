@@ -1,7 +1,6 @@
-import Link from "next/link"
 import type { Metadata } from "next"
-import { AfLogo } from "@/components/autoflow/af-logo"
-import { ShieldCheck, ArrowLeft } from "lucide-react"
+import { ShieldCheck } from "lucide-react"
+import { PublicPageShell } from "@/components/autoflow/public-page-shell"
 
 export const metadata: Metadata = {
   title: "Gizlilik Politikası ve KVKK Aydınlatma Metni",
@@ -11,34 +10,13 @@ export const metadata: Metadata = {
 
 export default function GizlilikPage() {
   return (
-    <div className="min-h-screen bg-af-bg text-af-text">
-      {/* Header */}
-      <header className="bg-af-surface border-b border-af-border py-4 px-6 sticky top-0 z-30">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <Link href="/" className="block">
-            <AfLogo variant="sidebar" size={32} />
-          </Link>
-          <Link
-            href="/kayit"
-            className="flex items-center gap-1.5 text-xs text-af-text-secondary hover:text-white transition-colors font-medium"
-          >
-            <ArrowLeft className="w-4 h-4" /> Kayıta Dön
-          </Link>
-        </div>
-      </header>
-
-      {/* Content */}
-      <main className="max-w-4xl mx-auto px-6 py-12 space-y-8">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-af-accent/10 border border-af-accent/20 flex items-center justify-center">
-            <ShieldCheck className="w-6 h-6 text-af-accent" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-black text-white">Gizlilik Politikası ve KVKK Aydınlatma Metni</h1>
-            <p className="text-af-text-secondary text-xs mt-0.5">Son Güncelleme: 11 Ağustos 2026</p>
-          </div>
-        </div>
-
+    <PublicPageShell
+      eyebrow="Gizlilik"
+      title="Gizlilik Politikası ve KVKK Aydınlatma Metni"
+      description="AutoFlow üzerinde kişisel verilerin hangi amaçlarla işlendiğini, nasıl korunduğunu ve KVKK kapsamındaki haklarınızı açıklar."
+      icon={<ShieldCheck className="h-6 w-6" />}
+    >
+        <p className="mb-5 text-xs text-af-text-disabled">Son güncelleme: 11 Ağustos 2026</p>
         <div className="bg-af-surface border border-af-border rounded-2xl p-6 sm:p-8 space-y-6 text-sm leading-relaxed text-af-text-secondary">
           <section className="space-y-2">
             <h2 className="text-base font-bold text-white">1. Veri Sorumlusu Kimliği</h2>
@@ -71,7 +49,6 @@ export default function GizlilikPage() {
             </p>
           </section>
         </div>
-      </main>
-    </div>
+    </PublicPageShell>
   )
 }
