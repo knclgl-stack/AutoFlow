@@ -195,7 +195,9 @@ export default function AyarlarPage() {
       return
     }
 
-    // 2. galeri_profilleri tablosunu güncelle/oluştur (upsert)
+    // 2. Kayıt sırasında oluşturulan mevcut galeri profilini güncelle.
+    // Normal kullanıcıların profil INSERT yetkisi yok; upsert bu yüzden
+    // mevcut satırda bile "permission denied" hatasına neden olur.
     const isPremium = profil.plan === "Elite" || profil.plan === "Professional"
     let finalSlug = ""
     if (isPremium) {
@@ -206,10 +208,9 @@ export default function AyarlarPage() {
         : `galeri-${Math.random().toString(36).substring(2, 8)}`
     }
 
-    const { error: profileError } = await supabase
+    const { data: updatedProfile, error: profileError } = await supabase
       .from("galeri_profilleri")
-      .upsert({
-        user_id: user.id,
+      .update({
         galeri_adi: profil.galeriAdi,
         logo_url: profil.logoUrl,
         slug: finalSlug,
@@ -223,7 +224,10 @@ export default function AyarlarPage() {
           hafta_ici: profil.calismaHaftaIci,
           hafta_sonu: profil.calismaHaftaSonu,
         },
-      }, { onConflict: "user_id" })
+      })
+      .eq("user_id", user.id)
+      .select("user_id")
+      .maybeSingle()
 
     setProfilYukleniyor(false)
     if (profileError) {
@@ -233,6 +237,11 @@ export default function AyarlarPage() {
         metin = "Bu sayfa adresi (slug) başka bir galeri tarafından kullanılıyor. Lütfen farklı bir adres girin."
       }
       setProfilMesaj({ tip: "hata", metin })
+    } else if (!updatedProfile) {
+      setProfilMesaj({
+        tip: "hata",
+        metin: "Galeri profiliniz bulunamadı. Lütfen destek ile iletişime geçin.",
+      })
     } else {
       setProfilMesaj({ tip: "basarili", metin: "Profil ve galeri bilgileriniz başarıyla güncellendi." })
       setTimeout(() => {
