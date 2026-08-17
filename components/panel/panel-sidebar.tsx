@@ -17,34 +17,15 @@ interface NavItem {
   exact?: boolean
 }
 
-const navGroups: Array<{ label: string; items: NavItem[] }> = [
-  {
-    label: "1 · Başlangıç",
-    items: [{ href: "/panel", icon: LayoutDashboard, label: "Dashboard", exact: true }],
-  },
-  {
-    label: "2 · Araçlarını hazırla",
-    items: [
-      { href: "/panel/araclar", icon: Car, label: "Araçlarım", exact: true },
-      { href: "/panel/araclar/yeni", icon: Plus, label: "Araç Ekle" },
-    ],
-  },
-  {
-    label: "3 · Yayınla ve büyüt",
-    items: [
-      { href: "/panel/qr", icon: QrCode, label: "QR Kodlar" },
-      { href: "/panel/flow-ai", icon: Sparkles, label: "Flow AI" },
-      { href: "/panel/analitik", icon: BarChart3, label: "Analitik" },
-    ],
-  },
-  {
-    label: "4 · Hesabını yönet",
-    items: [
-      { href: "/panel/abonelik", icon: CreditCard, label: "Abonelik" },
-      { href: "/panel/destek", icon: HelpCircle, label: "Destek & Yardım" },
-      { href: "/panel/ayarlar", icon: Settings, label: "Ayarlar" },
-    ],
-  },
+const navItems: NavItem[] = [
+  { href: "/panel", icon: LayoutDashboard, label: "Dashboard", exact: true },
+  { href: "/panel/araclar", icon: Car, label: "Araçlarım", exact: true },
+  { href: "/panel/araclar/yeni", icon: Plus, label: "Araç Ekle" },
+  { href: "/panel/qr", icon: QrCode, label: "QR Kodlar" },
+  { href: "/panel/analitik", icon: BarChart3, label: "Analitik" },
+  { href: "/panel/flow-ai", icon: Sparkles, label: "Flow AI" },
+  { href: "/panel/abonelik", icon: CreditCard, label: "Abonelik" },
+  { href: "/panel/destek", icon: HelpCircle, label: "Destek & Yardım" },
 ]
 
 export function PanelSidebar() {
@@ -121,32 +102,24 @@ export function PanelSidebar() {
         </span>
       </div>
 
-      <nav aria-label="Panel menüsü" className="flex-1 px-3 py-4 space-y-4 overflow-y-auto">
-        {navGroups.map((group) => (
-          <div key={group.label}>
-            <p className="mb-1 px-3 text-[9px] font-black uppercase tracking-[0.16em] text-af-text-disabled">{group.label}</p>
-            <div className="space-y-0.5">
-              {group.items.map((item) => {
-                const active = isActive(item.href, item.exact)
-                return (
-                  <Link key={item.href} href={item.href}
-                    aria-current={active ? "page" : undefined}
-                    className={cn(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
-                      active ? "text-white bg-af-accent" : "text-af-text-secondary hover:text-af-text hover:bg-af-surface-2"
-                    )}
-                  >
-                    <item.icon className={cn("w-4 h-4", active ? "text-white" : "text-af-text-disabled")} />
-                    {item.label}
-                  </Link>
-                )
-              })}
-            </div>
-          </div>
-        ))}
+      <nav aria-label="Panel menüsü" className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        {navItems.map((item) => {
+          const active = isActive(item.href, item.exact)
+          return (
+            <Link key={item.href} href={item.href}
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
+                active ? "text-white bg-af-accent" : "text-af-text-secondary hover:text-af-text hover:bg-af-surface-2"
+              )}
+            >
+              <item.icon className={cn("w-4 h-4", active ? "text-white" : "text-af-text-disabled")} />
+              {item.label}
+            </Link>
+          )
+        })}
         {showAdmin && (
-          <div className="border-t border-af-border pt-4">
-            <p className="mb-1 px-3 text-[9px] font-black uppercase tracking-[0.16em] text-af-text-disabled">Yönetim</p>
+          <>
             <Link href="/panel/admin"
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
@@ -165,7 +138,7 @@ export function PanelSidebar() {
               <Landmark className={cn("w-4 h-4", isActive("/panel/admin/havale") ? "text-white" : "text-af-text-disabled")} />
               Havale Talepleri
             </Link>
-          </div>
+          </>
         )}
       </nav>
 
@@ -179,6 +152,9 @@ export function PanelSidebar() {
             <p className="text-af-text-disabled text-[10px] truncate">{user?.email}</p>
           </div>
         </div>
+        <Link href="/panel/ayarlar" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-af-text-secondary hover:text-af-text hover:bg-af-surface-2 transition-all">
+          <Settings className="w-4 h-4" />Ayarlar
+        </Link>
         <button
           onClick={signOut}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-af-text-secondary hover:text-af-error hover:bg-af-error/10 transition-all"
