@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { PanelTopbar } from "@/components/panel/panel-topbar"
+import { FourStepFlow } from "@/components/autoflow/four-step-flow"
 import {
   Check, Zap, Crown, Star, ChevronRight, CreditCard,
   Car, Receipt, Shield, Sparkles, X, AlertCircle, Landmark, Clock3
@@ -232,6 +233,30 @@ export default function AbonelikPage() {
     return `₺${fiyat.toLocaleString("tr-TR")}`
   }
 
+  const referansHazir = havaleReferansi.trim().length >= 3
+  const abonelikAdimlari = [
+    {
+      title: "Dönemi seç",
+      description: `${odemePeriyodu === "yillik" ? "Yıllık" : "Aylık"} ödeme seçili.`,
+      status: "complete",
+    },
+    {
+      title: "Planını seç",
+      description: secilenPlanBilgi ? `${secilenPlanBilgi.ad} seçildi.` : "İhtiyacına uygun paketi seç.",
+      status: bekleyenTalep || seciliPlan ? "complete" : "current",
+    },
+    {
+      title: "Havaleyi yap",
+      description: "Tutarı gönderip banka referansını gir.",
+      status: bekleyenTalep || referansHazir ? "complete" : seciliPlan ? "current" : "upcoming",
+    },
+    {
+      title: "Talebi gönder",
+      description: bekleyenTalep ? "Talebin onay sırasına alındı." : "Bilgileri gönder, onayı bekle.",
+      status: bekleyenTalep ? "complete" : referansHazir ? "current" : "upcoming",
+    },
+  ] as const
+
   return (
     <div className="flex flex-col min-h-screen bg-af-bg text-af-text">
       <PanelTopbar baslik="Abonelik Yönetimi" aciklama="Paketinizi yönetin ve yükseltin" />
@@ -291,6 +316,13 @@ export default function AbonelikPage() {
             </div>
           </div>
         </div>
+
+        <FourStepFlow
+          compact
+          title="Plan değişikliğini tamamla"
+          description="Dönem seçiminden onay talebine kadar tüm işlem dört adımda tamamlanır."
+          steps={abonelikAdimlari}
+        />
 
         {/* ── Ödeme Periyodu Toggle ── */}
         <div className="flex flex-col items-center gap-3">
@@ -455,13 +487,14 @@ export default function AbonelikPage() {
       {/* ════ ONAY MODAL ════ */}
       {onayModal && secilenPlanBilgi && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="bg-af-surface border border-af-border rounded-2xl w-full max-w-md p-6 shadow-2xl">
+          <div role="dialog" aria-modal="true" aria-labelledby="plan-onay-baslik" className="bg-af-surface border border-af-border rounded-2xl w-full max-w-md p-6 shadow-2xl">
             <div className="flex items-center gap-3 mb-5">
               <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", secilenPlanBilgi.iconBg)}>
                 <secilenPlanBilgi.icon className={cn("w-5 h-5", secilenPlanBilgi.iconColor)} />
               </div>
               <div>
-                <h3 className="font-black text-white text-base">{secilenPlanBilgi.ad} Planına Geç</h3>
+                <p className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-af-accent">Adım 3 / 4 · Havaleyi doğrula</p>
+                <h3 id="plan-onay-baslik" className="font-black text-white text-base">{secilenPlanBilgi.ad} Planına Geç</h3>
                 <p className="text-xs text-af-text-disabled">{secilenPlanBilgi.altBaslik}</p>
               </div>
             </div>
@@ -521,8 +554,14 @@ export default function AbonelikPage() {
 
             <div className="flex gap-3">
               <button
-                onClick={() => { setOnayModal(false); setSeciliPlan(null) }}
-                disabled={yukleniyor || havaleReferansi.trim().length < 3}
+                onClick={() => {
+                  setOnayModal(false)
+                  setSeciliPlan(null)
+                  setHavaleReferansi("")
+                  setKullaniciNotu("")
+                  setHata("")
+                }}
+                disabled={yukleniyor}
                 className="flex-1 border border-af-border hover:bg-af-surface-2 text-af-text-secondary font-semibold py-3 rounded-xl transition-colors text-sm"
               >
                 Vazgeç
@@ -540,7 +579,7 @@ export default function AbonelikPage() {
                 {yukleniyor ? (
                   <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> İşleniyor...</>
                 ) : (
-                  <>Ödeme Yaptım <ChevronRight className="w-4 h-4" /></>
+                  <>4. Adım: Talebi Gönder <ChevronRight className="w-4 h-4" /></>
                 )}
               </button>
             </div>
@@ -551,11 +590,12 @@ export default function AbonelikPage() {
       {/* ════ BAŞARI MODAL ════ */}
       {basariModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="bg-af-surface border border-af-border rounded-2xl w-full max-w-sm p-8 shadow-2xl text-center">
+          <div role="dialog" aria-modal="true" aria-labelledby="plan-basari-baslik" className="bg-af-surface border border-af-border rounded-2xl w-full max-w-sm p-8 shadow-2xl text-center">
             <div className="w-16 h-16 rounded-2xl bg-af-success/10 border border-af-success/20 flex items-center justify-center mx-auto mb-4">
               <Check className="w-8 h-8 text-af-success" />
             </div>
-            <h3 className="font-black text-white text-xl mb-2">Talebiniz Alındı</h3>
+            <p className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-af-success">4 adım tamamlandı</p>
+            <h3 id="plan-basari-baslik" className="font-black text-white text-xl mb-2">Talebiniz Alındı</h3>
             <p className="text-sm text-af-text-secondary mb-6">
               Havale bilginiz admin incelemesine gönderildi. Onaylandığında planınız otomatik olarak aktifleşecek ve bildirim alacaksınız.
             </p>

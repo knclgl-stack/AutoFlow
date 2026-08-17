@@ -2,23 +2,15 @@
 
 import { useEffect, useState } from "react"
 import { PanelTopbar } from "@/components/panel/panel-topbar"
+import { FourStepFlow } from "@/components/autoflow/four-step-flow"
 import { formatKm } from "@/lib/arac-helpers"
 import { DurumRozeti } from "@/components/autoflow/durum-rozeti"
-import { Car, QrCode, TrendingUp, MessageCircle, ArrowUpRight, Plus, Sparkles } from "lucide-react"
+import { Car, QrCode, TrendingUp, MessageCircle, ArrowUpRight, Plus } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
 import { createClient } from "@/lib/supabase/client"
 import type { Arac } from "@/lib/types"
-
-function galeriSlugOlustur(galeriAdi: string): string {
-  return galeriAdi
-    .toLowerCase()
-    .replace(/ğ/g, "g").replace(/ü/g, "u").replace(/ş/g, "s")
-    .replace(/ı/g, "i").replace(/ö/g, "o").replace(/ç/g, "c")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-}
 
 export default function PanelDashboard() {
   const { user } = useAuth()
@@ -28,100 +20,6 @@ export default function PanelDashboard() {
   const [qrOkutmalari, setQrOkutmalari] = useState<number>(0)
   const [yukleniyor, setYukleniyor] = useState(true)
   const [galeriSlug, setGaleriSlug] = useState("galerim")
-  const [mocking, setMocking] = useState(false)
-
-  const handleMockEkle = async () => {
-    if (!user) return
-    setMocking(true)
-    try {
-      const mockCars = [
-        {
-          user_id: user.id,
-          marka: "BMW",
-          model: "3 Serisi",
-          yil: 2020,
-          versiyon: "320d M Sport",
-          renk: "Siyah",
-          motor_hacmi: 1995,
-          motor_gucu: 190,
-          vites: "Otomatik",
-          yakit: "Dizel",
-          kasa_tipi: "Sedan",
-          km: 84000,
-          hasar_kaydi: false,
-          boyali_parca: 0,
-          fotograflar: ["https://images.unsplash.com/photo-1555215695-3004980ad54e?w=800"],
-          fiyat: 1950000,
-          fiyat_gizle: false,
-          pazarlik_var: true,
-          ozellikler: ["Isıtmalı Koltuklar", "Sunroof / Panoramik Tavan", "Geri Görüş Kamerası", "Apple CarPlay / Android Auto", "LED Farlar"],
-          durum: "Aktif",
-          qr_slug: `bmw-320d-${Math.floor(1000 + Math.random() * 9000)}`
-        },
-        {
-          user_id: user.id,
-          marka: "Mercedes-Benz",
-          model: "C Serisi",
-          yil: 2019,
-          versiyon: "C200 d AMG",
-          renk: "Beyaz",
-          motor_hacmi: 1597,
-          motor_gucu: 160,
-          vites: "Otomatik",
-          yakit: "Dizel",
-          kasa_tipi: "Sedan",
-          km: 98000,
-          hasar_kaydi: true,
-          boyali_parca: 2,
-          fotograflar: ["https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?w=800"],
-          fiyat: 1820000,
-          fiyat_gizle: false,
-          pazarlik_var: false,
-          ozellikler: ["Sunroof / Panoramik Tavan", "Park Sensörü", "Geri Görüş Kamerası", "Deri Döşeme"],
-          durum: "Aktif",
-          qr_slug: `mb-c200-${Math.floor(1000 + Math.random() * 9000)}`
-        },
-        {
-          user_id: user.id,
-          marka: "Audi",
-          model: "A4",
-          yil: 2021,
-          versiyon: "40 TDI Quattro S-Line",
-          renk: "Gri",
-          motor_hacmi: 1968,
-          motor_gucu: 204,
-          vites: "Otomatik",
-          yakit: "Dizel",
-          kasa_tipi: "Sedan",
-          km: 42000,
-          hasar_kaydi: false,
-          boyali_parca: 0,
-          fotograflar: ["https://images.unsplash.com/photo-1606016159991-dfe4f2746ad5?w=800"],
-          fiyat: 2450000,
-          fiyat_gizle: false,
-          pazarlik_var: true,
-          ozellikler: ["Isıtmalı Koltuklar", "Sunroof / Panoramik Tavan", "Keyless Go / Keyless Entry", "Apple CarPlay / Android Auto"],
-          durum: "Aktif",
-          qr_slug: `audi-a4-${Math.floor(1000 + Math.random() * 9000)}`
-        }
-      ]
-
-      const { data, error } = await supabase
-        .from("araclar")
-        .insert(mockCars)
-        .select()
-
-      if (error) throw error
-
-      setAraclar(data as Arac[])
-      alert("Hızlı test verileri başarıyla yüklendi! Araçlarınızı şimdi inceleyebilirsiniz.")
-    } catch (err) {
-      console.error(err)
-      alert("Mock veri yüklenirken hata oluştu.")
-    } finally {
-      setMocking(false)
-    }
-  }
 
   useEffect(() => {
     if (!user) return
@@ -224,6 +122,38 @@ export default function PanelDashboard() {
   ]
 
   const bosEkran = !yukleniyor && toplamArac === 0
+  const profilHazir = galeriSlug !== "galerim"
+
+  const baslangicAdimlari = [
+    {
+      title: "Galerini tamamla",
+      description: "Telefon, adres ve vitrin bilgilerini kontrol et.",
+      href: "/panel/ayarlar",
+      actionLabel: "Profili düzenle",
+      status: profilHazir ? "complete" : "current",
+    },
+    {
+      title: "Aracını ekle",
+      description: "Bilgileri dört kısa aşamada girip yayınla.",
+      href: "/panel/araclar/yeni",
+      actionLabel: toplamArac > 0 ? "Yeni araç ekle" : "İlk aracı ekle",
+      status: toplamArac > 0 ? "complete" : profilHazir ? "current" : "upcoming",
+    },
+    {
+      title: "QR kodunu indir",
+      description: "Otomatik oluşan QR kartını araçta kullan.",
+      href: "/panel/qr",
+      actionLabel: "QR kodlara git",
+      status: qrOkutmalari > 0 ? "complete" : toplamArac > 0 ? "current" : "upcoming",
+    },
+    {
+      title: "İlgiyi takip et",
+      description: "Görüntülenme ve müşteri hareketlerini izle.",
+      href: "/panel/analitik",
+      actionLabel: "Analitiği aç",
+      status: qrOkutmalari > 0 ? "current" : "upcoming",
+    },
+  ] as const
 
   return (
     <div className="flex flex-col min-h-screen bg-af-bg">
@@ -252,6 +182,12 @@ export default function PanelDashboard() {
           ))}
         </div>
 
+        <FourStepFlow
+          title="İlk müşteriye giden en kısa yol"
+          description="AutoFlow'da temel kurulumdan ölçülebilir müşteri ilgisine dört adımda ulaşın."
+          steps={baslangicAdimlari}
+        />
+
         {/* BOŞ EKRAN — yeni kullanıcı */}
         {bosEkran && (
           <div className="bg-af-surface border border-af-border rounded-2xl p-12 flex flex-col items-center text-center">
@@ -262,27 +198,13 @@ export default function PanelDashboard() {
             <p className="text-af-text-secondary text-sm max-w-sm mb-6">
               İlk aracınızı ekleyin, QR kodunu yazdırın ve müşterileriniz tüm detaylara anında ulaşsın.
             </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center w-full max-w-md mx-auto">
+            <div className="w-full max-w-xs mx-auto">
               <Link
                 href="/panel/araclar/yeni"
-                className="flex-1 flex items-center justify-center gap-2 bg-af-accent hover:bg-af-accent-hover text-white font-bold px-6 py-3 rounded-xl transition-all hover:shadow-xl hover:shadow-af-accent/25 text-sm"
+                className="flex items-center justify-center gap-2 bg-af-accent hover:bg-af-accent-hover text-white font-bold px-6 py-3 rounded-xl transition-all hover:shadow-xl hover:shadow-af-accent/25 text-sm"
               >
                 <Plus className="w-5 h-5" /> İlk Aracı Ekle
               </Link>
-              <button
-                onClick={handleMockEkle}
-                disabled={mocking}
-                className="flex-1 flex items-center justify-center gap-2 bg-af-surface-2 border border-af-border hover:border-af-accent/40 disabled:opacity-50 text-white font-bold px-6 py-3 rounded-xl transition-all text-sm"
-              >
-                {mocking ? (
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 text-amber-400" />
-                    Test Verisi Yükle
-                  </>
-                )}
-              </button>
             </div>
           </div>
         )}

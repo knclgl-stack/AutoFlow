@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react"
 import { PanelTopbar } from "@/components/panel/panel-topbar"
+import { FourStepFlow } from "@/components/autoflow/four-step-flow"
 import {
   Sparkles, Upload, Send, RefreshCw, Download, Check,
   Palette, Zap, Eye, ChevronDown, X
@@ -1557,6 +1558,30 @@ JSON Formatı:
     sendMessage(inputText)
   }
 
+  const stilIstegiVar = mesajlar.some((mesaj) => mesaj.sender === "user" && !mesaj.imagePreview)
+  const flowAiAdimlari = [
+    {
+      title: "Fotoğrafı yükle",
+      description: "Net bir araç fotoğrafı seç.",
+      status: uploadedImage ? "complete" : "current",
+    },
+    {
+      title: "Stili tarif et",
+      description: "İstediğin stüdyo ve ışığı yaz.",
+      status: stilIstegiVar || enhanceSuccess ? "complete" : uploadedImage ? "current" : "upcoming",
+    },
+    {
+      title: "Flow AI hazırlasın",
+      description: "Arka plan ve ışık otomatik işlensin.",
+      status: enhanceSuccess ? "complete" : processing || stilIstegiVar ? "current" : "upcoming",
+    },
+    {
+      title: "Kontrol et ve indir",
+      description: "Sonucu incele, gerekirse düzelt ve indir.",
+      status: enhanceSuccess ? "current" : "upcoming",
+    },
+  ] as const
+
   /* ─────────────────────────────────────────────
      RENDER
   ───────────────────────────────────────────── */
@@ -1599,6 +1624,14 @@ JSON Formatı:
             </div>
           </div>
         )}
+
+        <FourStepFlow
+          compact
+          className="mb-4 w-full"
+          title="Fotoğraftan showroom görseline"
+          description="Tek bir ekranda dört net adımla profesyonel araç görseli hazırlayın."
+          steps={flowAiAdimlari}
+        />
 
         {/* ════ CHAT WINDOW ════ */}
         <div className="w-full bg-af-surface border border-af-border rounded-3xl flex flex-col shadow-2xl overflow-hidden" style={{ height: "720px" }}>
@@ -1643,6 +1676,7 @@ JSON Formatı:
                     ])
                   }}
                   className="text-[10px] font-bold text-af-text-secondary hover:text-white bg-af-surface-2 border border-af-border hover:border-white/20 px-3 py-2 rounded-xl transition-colors flex items-center gap-1.5"
+                  aria-label="Yeni araç fotoğrafıyla başla"
                 >
                   <RefreshCw className="w-3.5 h-3.5" /> Yeni Fotoğraf
                 </button>
@@ -1658,6 +1692,15 @@ JSON Formatı:
             {!uploadedImage && (
               <div
                 onClick={() => fileInputRef.current?.click()}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault()
+                    fileInputRef.current?.click()
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-label="Araç fotoğrafı yükle"
                 className="border-2 border-dashed border-af-border/60 hover:border-af-accent/40 rounded-3xl p-10 flex flex-col items-center text-center cursor-pointer hover:bg-af-surface-2/20 transition-all group my-6"
               >
                 <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="image/*" className="hidden" />

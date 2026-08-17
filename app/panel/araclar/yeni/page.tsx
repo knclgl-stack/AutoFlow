@@ -11,12 +11,10 @@ import { getVehicleLimit, normalizePlan } from "@/lib/plans"
 import html2canvas from "html2canvas"
 
 const ADIMLAR = [
-  { id: 1, baslik: "Temel Bilgiler", aciklama: "Marka, model, yıl" },
-  { id: 2, baslik: "Teknik Bilgiler", aciklama: "Motor, vites, yakıt" },
-  { id: 3, baslik: "Fotoğraflar", aciklama: "Görsel yükle" },
-  { id: 4, baslik: "Hasar Geçmişi", aciklama: "Tramer & ağır hasar" },
-  { id: 5, baslik: "Fiyat & Durum", aciklama: "Fiyat belirle" },
-  { id: 6, baslik: "Özet", aciklama: "Gözden geçir & kaydet" },
+  { id: 1, baslik: "Araç Kimliği", aciklama: "Marka, model, yıl ve renk" },
+  { id: 2, baslik: "Teknik & Hasar", aciklama: "Teknik bilgiler, donanım ve geçmiş" },
+  { id: 3, baslik: "Fotoğraf & Satış", aciklama: "Görseller, fiyat ve açıklama" },
+  { id: 4, baslik: "Kontrol & Yayınla", aciklama: "Son kontrolü yapıp QR vitrini oluştur" },
 ]
 
 const MARKALAR = ["BMW", "Mercedes-Benz", "Audi", "Toyota", "Volkswagen", "Ford", "Renault", "Peugeot", "Hyundai", "Kia", "Honda", "Volvo", "Land Rover", "Porsche", "Ferrari", "Lamborghini"]
@@ -281,6 +279,23 @@ export default function YeniAracPage() {
     }
   }
 
+  const sonrakiAdimaGec = () => {
+    setHata("")
+
+    if (aktifAdim === 1 && (!form.marka || !form.model.trim() || !form.yil)) {
+      setHata("Devam etmek için marka, model ve yıl bilgilerini tamamlayın.")
+      return
+    }
+
+    if (aktifAdim === 2 && (!form.vites || !form.yakit || !form.kasa_tipi || !form.km)) {
+      setHata("Devam etmek için vites, yakıt, kasa tipi ve kilometre bilgilerini tamamlayın.")
+      return
+    }
+
+    setAktifAdim((s) => Math.min(ADIMLAR.length, s + 1))
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
   const handleSubmit = async () => {
     if (!user) {
       setHata("Oturum açmış olmanız gerekmektedir.")
@@ -367,7 +382,6 @@ export default function YeniAracPage() {
   }
 
   if (tamam) {
-    const aracAdi = `${form.yil} ${form.marka} ${form.model}${form.versiyon ? ` ${form.versiyon}` : ""}`
     const qrUrl = typeof window !== "undefined" ? `${window.location.origin}/arac/${kaydedilenSlug}` : `/arac/${kaydedilenSlug}`
     const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrUrl)}&bgcolor=ffffff&color=0f172a&margin=12&qzone=1`
     const galeriBaslik = galeriAdi || "AutoFlow"
@@ -433,7 +447,7 @@ export default function YeniAracPage() {
               {/* QR Code Container */}
               <div className="my-5 flex flex-col items-center">
                 <div className="bg-white border-2 border-[#FF7A00]/30 rounded-2xl p-3.5 shadow-[0_8px_30px_rgba(255,122,0,0.1)] inline-block">
-                  <img src={qrImgUrl} alt="QR Kod" width={160} height={160} className="rounded-lg block" />
+                  <img src={qrImgUrl} alt={`${form.marka} ${form.model} araç QR kodu`} width={160} height={160} className="rounded-lg block" />
                 </div>
                 <span className="text-[9px] font-black tracking-[2px] uppercase text-[#FF7A00] bg-[#FF7A00]/10 border border-[#FF7A00]/25 px-3 py-1 rounded-full mt-3">
                   📱 TARAT VE İNCELE
@@ -509,16 +523,28 @@ export default function YeniAracPage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-af-bg text-af-text">
-      <PanelTopbar baslik="Yeni Araç Ekle" aciklama="Adım adım ilerleyin" />
+      <PanelTopbar baslik="Yeni Araç Ekle" aciklama="Dört adımda yayınlayın ve QR kodunu oluşturun" />
 
-      <main className="flex-1 p-6 max-w-3xl mx-auto w-full">
+      <main className="flex-1 p-4 sm:p-6 max-w-3xl mx-auto w-full">
         {/* STEPPER */}
-        <div className="flex items-center gap-0 mb-8 overflow-x-auto pb-2">
+        <div className="mb-3 flex items-center justify-between">
+          <span className="text-xs font-black uppercase tracking-[0.18em] text-af-accent">4 adımda yayınla</span>
+          <span className="text-xs font-semibold text-af-text-secondary">Adım {aktifAdim} / {ADIMLAR.length}</span>
+        </div>
+        <div className="flex items-center gap-0 mb-8 overflow-x-auto pb-2" aria-label="Araç ekleme ilerlemesi">
           {ADIMLAR.map((adim, idx) => (
             <div key={adim.id} className="flex items-center flex-shrink-0">
               <button
                 type="button"
-                onClick={() => aktifAdim > adim.id && setAktifAdim(adim.id)}
+                onClick={() => {
+                  if (aktifAdim > adim.id) {
+                    setAktifAdim(adim.id)
+                    setHata("")
+                  }
+                }}
+                disabled={aktifAdim < adim.id}
+                aria-current={aktifAdim === adim.id ? "step" : undefined}
+                aria-label={`${adim.id}. adım: ${adim.baslik}`}
                 className={cn(
                   "flex items-center gap-2 px-3 py-2 rounded-xl transition-all text-sm",
                   aktifAdim === adim.id
@@ -555,6 +581,13 @@ export default function YeniAracPage() {
           <h2 className="text-lg font-bold text-af-text mb-1">{ADIMLAR[aktifAdim - 1].baslik}</h2>
           <p className="text-af-text-secondary text-sm mb-6">{ADIMLAR[aktifAdim - 1].aciklama}</p>
 
+          {hata && (
+            <div aria-live="polite" className="mb-6 flex items-center gap-2.5 rounded-xl border border-af-error/25 bg-af-error/10 px-4 py-3 text-sm text-af-error">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <p>{hata}</p>
+            </div>
+          )}
+
           {/* ADIM 1: Temel Bilgiler */}
           {aktifAdim === 1 && (
             <div className="space-y-5">
@@ -585,7 +618,7 @@ export default function YeniAracPage() {
             </div>
           )}
 
-          {/* ADIM 2: Teknik */}
+          {/* ADIM 2: Teknik bilgiler ve donanım */}
           {aktifAdim === 2 && (
             <div className="space-y-5">
               <div className="grid grid-cols-2 gap-4">
@@ -736,13 +769,14 @@ export default function YeniAracPage() {
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {form.foto_urls.map((url, i) => (
                       <div key={i} className="relative group rounded-xl overflow-hidden bg-af-surface-2 border border-af-border" style={{ aspectRatio: "16/10" }}>
-                        <img src={url} alt="" className="w-full h-full object-cover" />
+                        <img src={url} alt={`${form.marka || "Araç"} fotoğrafı ${i + 1}`} className="w-full h-full object-cover" />
                         {i === 0 && (
                           <span className="absolute top-2 left-2 text-xs bg-af-accent text-white px-2 py-0.5 rounded-full font-bold shadow-md">Kapak</span>
                         )}
                         <button
                           type="button"
                           onClick={() => update("foto_urls", form.foto_urls.filter((_, idx) => idx !== i))}
+                          aria-label={`${i + 1}. fotoğrafı kaldır`}
                           className="absolute top-2 right-2 w-6 h-6 rounded-full bg-af-error hover:bg-af-error/90 text-white flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200 shadow-md"
                         >
                           <X className="w-3.5 h-3.5" />
@@ -763,9 +797,13 @@ export default function YeniAracPage() {
             </div>
           )}
 
-          {/* ADIM 4: Hasar Geçmişi */}
-          {aktifAdim === 4 && (
-            <div className="space-y-6">
+          {/* ADIM 2: Hasar Geçmişi */}
+          {aktifAdim === 2 && (
+            <div className="mt-8 space-y-6 border-t border-af-border pt-6">
+              <div>
+                <h3 className="text-sm font-black text-white">Hasar ve tramer geçmişi</h3>
+                <p className="mt-1 text-xs text-af-text-secondary">Müşterinin araç sayfasında göreceği geçmiş bilgilerini ekleyin.</p>
+              </div>
               {/* Tramer Kaydı */}
               <FormField label="Tramer Kaydı">
                 <div className="flex gap-3 mb-4">
@@ -877,9 +915,13 @@ export default function YeniAracPage() {
             </div>
           )}
 
-          {/* ADIM 5: Fiyat */}
-          {aktifAdim === 5 && (
-            <div className="space-y-5">
+          {/* ADIM 3: Fiyat ve açıklama */}
+          {aktifAdim === 3 && (
+            <div className="mt-8 space-y-5 border-t border-af-border pt-6">
+              <div>
+                <h3 className="text-sm font-black text-white">Satış bilgileri</h3>
+                <p className="mt-1 text-xs text-af-text-secondary">Fiyatı ve müşteriye gösterilecek kısa açıklamayı belirleyin.</p>
+              </div>
               <FormField label="Satış Fiyatı (₺)">
                 <input
                   className={inputClass}
@@ -930,8 +972,8 @@ export default function YeniAracPage() {
             </div>
           )}
 
-          {/* ADIM 6: Özet */}
-          {aktifAdim === 6 && (
+          {/* ADIM 4: Özet ve yayın */}
+          {aktifAdim === 4 && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 {[
@@ -968,16 +1010,9 @@ export default function YeniAracPage() {
                 </div>
               )}
 
-              {hata && (
-                <div className="flex items-center gap-2.5 bg-af-error/10 border border-af-error/25 rounded-xl px-4 py-3 text-sm text-af-error">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                  <p>{hata}</p>
-                </div>
-              )}
-
               <div className="mt-4 p-4 bg-af-accent/10 border border-af-accent/20 rounded-xl">
-                <p className="text-af-accent text-sm font-medium">✓ QR kodu otomatik oluşturulacak</p>
-                <p className="text-af-text-secondary text-xs mt-0.5">Araç kaydedildikten sonra QR Kodlar sayfasından indirebilirsiniz</p>
+                <p className="text-af-accent text-sm font-medium">✓ Araç aktif yayınlanacak ve QR kodu otomatik oluşturulacak</p>
+                <p className="text-af-text-secondary text-xs mt-0.5">Yayınladıktan sonra QR tanıtım kartını aynı ekrandan indirebilirsiniz.</p>
               </div>
             </div>
           )}
@@ -987,7 +1022,10 @@ export default function YeniAracPage() {
         <div className="flex items-center justify-between mt-5">
           <button
             type="button"
-            onClick={() => setAktifAdim((s) => Math.max(1, s - 1))}
+            onClick={() => {
+              setAktifAdim((s) => Math.max(1, s - 1))
+              setHata("")
+            }}
             disabled={aktifAdim === 1 || kaydediliyor}
             className="px-5 py-2.5 text-af-text-secondary hover:text-white border border-af-border hover:border-af-border-light rounded-xl text-sm font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed"
           >
@@ -997,10 +1035,10 @@ export default function YeniAracPage() {
           {aktifAdim < ADIMLAR.length ? (
             <button
               type="button"
-              onClick={() => setAktifAdim((s) => Math.min(ADIMLAR.length, s + 1))}
+              onClick={sonrakiAdimaGec}
               className="flex items-center gap-2 bg-af-accent hover:bg-af-accent-hover text-white px-6 py-2.5 rounded-xl text-sm font-semibold transition-colors shadow-lg"
             >
-              İleri <ChevronRight className="w-4 h-4" />
+              İleri: {ADIMLAR[aktifAdim].baslik} <ChevronRight className="w-4 h-4" />
             </button>
           ) : (
             <button
@@ -1016,7 +1054,7 @@ export default function YeniAracPage() {
                 </>
               ) : (
                 <>
-                  <Check className="w-4 h-4" /> Aracı Kaydet
+                  <Check className="w-4 h-4" /> Yayınla ve QR Oluştur
                 </>
               )}
             </button>

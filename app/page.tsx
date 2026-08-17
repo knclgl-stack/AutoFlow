@@ -417,14 +417,15 @@ export default function LandingPage() {
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-14">
             <span className="text-xs uppercase font-bold tracking-wider text-af-accent mb-3 block">Basitlik Güçtür</span>
-            <h2 className="text-3xl sm:text-4xl font-black mb-3">3 Adımda Canlıya Alın</h2>
-            <p className="text-af-text-secondary text-sm">Teknik bilgi gerekmez. Hesabınızı oluşturun, araç bilgilerini ekleyin ve QR kodunu indirin.</p>
+            <h2 className="text-3xl sm:text-4xl font-black mb-3">4 Adımda Sonuca Ulaşın</h2>
+            <p className="text-af-text-secondary text-sm">Hesabınızı açın, aracınızı hazırlayın ve QR vitrininizi müşterilerle buluşturun.</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 relative">
             {[
               { n: "01", baslik: "Hesabınızı Açın", aciklama: "E-posta ile kaydolun. Kredi kartı bilgisi istenmez.", zaman: "Ücretsiz kayıt", icon: Zap },
-              { n: "02", baslik: "Aracınızı Ekleyin", aciklama: "Fotoğraf yükleyin, özellikleri ve yayınlamak istediğiniz fiyatı girin.", zaman: "Panelden yönetim", icon: Car },
-              { n: "03", baslik: "QR Kodunu Yayınlayın", aciklama: "QR kodunu indirin ve araç camında veya dijital kanallarınızda paylaşın.", zaman: "Araca özel QR", icon: QrCode },
+              { n: "02", baslik: "Aracınızı Ekleyin", aciklama: "Bilgi, hasar, fotoğraf ve satış detaylarını dört kısa aşamada girin.", zaman: "Kolay araç sihirbazı", icon: Car },
+              { n: "03", baslik: "Satışa Hazırlayın", aciklama: "Uygun planlarda Flow AI ile fotoğrafı showroom kalitesine taşıyın.", zaman: "AI destekli", icon: Sparkles },
+              { n: "04", baslik: "QR ile Yayınlayın", aciklama: "Hazır QR kartını indirin; araç camında veya dijital kanallarda paylaşın.", zaman: "Araca özel QR", icon: QrCode },
             ].map((adim, i) => {
               const Ic = adim.icon
               return (
@@ -442,7 +443,7 @@ export default function LandingPage() {
                       <Clock className="w-3 h-3" /> {adim.zaman}
                     </span>
                   </div>
-                  {i < 2 && <div className="hidden md:block absolute top-1/2 -right-3 z-10 text-af-border"><ChevronRight className="w-6 h-6" /></div>}
+                  {i < 3 && <div className="hidden lg:block absolute top-1/2 -right-3 z-10 text-af-border"><ChevronRight className="w-6 h-6" /></div>}
                 </div>
               )
             })}

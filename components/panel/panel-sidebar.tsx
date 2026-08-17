@@ -10,21 +10,47 @@ import { useAuth } from "@/lib/auth-context"
 import { isAdmin } from "@/lib/admin"
 import { createClient } from "@/lib/supabase/client"
 
-const navItems = [
-  { href: "/panel", icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/panel/araclar", icon: Car, label: "Araçlarım" },
-  { href: "/panel/araclar/yeni", icon: Plus, label: "Araç Ekle" },
-  { href: "/panel/qr", icon: QrCode, label: "QR Kodlar" },
-  { href: "/panel/analitik", icon: BarChart3, label: "Analitik" },
-  { href: "/panel/flow-ai", icon: Sparkles, label: "Flow AI" },
-  { href: "/panel/abonelik", icon: CreditCard, label: "Abonelik" },
-  { href: "/panel/destek", icon: HelpCircle, label: "Destek & Yardım" },
+interface NavItem {
+  href: string
+  icon: typeof LayoutDashboard
+  label: string
+  exact?: boolean
+}
+
+const navGroups: Array<{ label: string; items: NavItem[] }> = [
+  {
+    label: "1 · Başlangıç",
+    items: [{ href: "/panel", icon: LayoutDashboard, label: "Dashboard", exact: true }],
+  },
+  {
+    label: "2 · Araçlarını hazırla",
+    items: [
+      { href: "/panel/araclar", icon: Car, label: "Araçlarım", exact: true },
+      { href: "/panel/araclar/yeni", icon: Plus, label: "Araç Ekle" },
+    ],
+  },
+  {
+    label: "3 · Yayınla ve büyüt",
+    items: [
+      { href: "/panel/qr", icon: QrCode, label: "QR Kodlar" },
+      { href: "/panel/flow-ai", icon: Sparkles, label: "Flow AI" },
+      { href: "/panel/analitik", icon: BarChart3, label: "Analitik" },
+    ],
+  },
+  {
+    label: "4 · Hesabını yönet",
+    items: [
+      { href: "/panel/abonelik", icon: CreditCard, label: "Abonelik" },
+      { href: "/panel/destek", icon: HelpCircle, label: "Destek & Yardım" },
+      { href: "/panel/ayarlar", icon: Settings, label: "Ayarlar" },
+    ],
+  },
 ]
 
 export function PanelSidebar() {
   const pathname = usePathname()
   const { user, signOut } = useAuth()
-  const isActive = (href: string) => href === "/panel" ? pathname === "/panel" : pathname.startsWith(href)
+  const isActive = (href: string, exact = false) => exact ? pathname === href : pathname.startsWith(href)
 
   const [dbPlan, setDbPlan] = useState<string>("Essential")
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -69,6 +95,7 @@ export function PanelSidebar() {
         </Link>
         <button
           onClick={() => setMobileOpen(false)}
+          aria-label="Menüyü kapat"
           className="lg:hidden p-1.5 rounded-lg text-af-text-disabled hover:text-white"
         >
           <X className="w-5 h-5" />
@@ -90,27 +117,36 @@ export function PanelSidebar() {
             dbPlan === "Professional" && "bg-af-info",
             dbPlan === "Essential" && "bg-af-text-disabled"
           )} />
-          {dbPlan === "Elite" ? "Elite (Sınırsız)" : dbPlan === "Professional" ? "Professional (10)" : "Essential (Araç Başı)"}
+          {dbPlan === "Elite" ? "Elite · Sınırsız" : dbPlan === "Professional" ? "Professional · 30 araç" : "Essential · 3 araç"}
         </span>
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {navItems.map((item) => {
-          const active = isActive(item.href)
-          return (
-            <Link key={item.href} href={item.href}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
-                active ? "text-white bg-af-accent" : "text-af-text-secondary hover:text-af-text hover:bg-af-surface-2"
-              )}
-            >
-              <item.icon className={cn("w-4 h-4", active ? "text-white" : "text-af-text-disabled")} />
-              {item.label}
-            </Link>
-          )
-        })}
+      <nav aria-label="Panel menüsü" className="flex-1 px-3 py-4 space-y-4 overflow-y-auto">
+        {navGroups.map((group) => (
+          <div key={group.label}>
+            <p className="mb-1 px-3 text-[9px] font-black uppercase tracking-[0.16em] text-af-text-disabled">{group.label}</p>
+            <div className="space-y-0.5">
+              {group.items.map((item) => {
+                const active = isActive(item.href, item.exact)
+                return (
+                  <Link key={item.href} href={item.href}
+                    aria-current={active ? "page" : undefined}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
+                      active ? "text-white bg-af-accent" : "text-af-text-secondary hover:text-af-text hover:bg-af-surface-2"
+                    )}
+                  >
+                    <item.icon className={cn("w-4 h-4", active ? "text-white" : "text-af-text-disabled")} />
+                    {item.label}
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+        ))}
         {showAdmin && (
-          <>
+          <div className="border-t border-af-border pt-4">
+            <p className="mb-1 px-3 text-[9px] font-black uppercase tracking-[0.16em] text-af-text-disabled">Yönetim</p>
             <Link href="/panel/admin"
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
@@ -129,7 +165,7 @@ export function PanelSidebar() {
               <Landmark className={cn("w-4 h-4", isActive("/panel/admin/havale") ? "text-white" : "text-af-text-disabled")} />
               Havale Talepleri
             </Link>
-          </>
+          </div>
         )}
       </nav>
 
@@ -143,9 +179,6 @@ export function PanelSidebar() {
             <p className="text-af-text-disabled text-[10px] truncate">{user?.email}</p>
           </div>
         </div>
-        <Link href="/panel/ayarlar" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-af-text-secondary hover:text-af-text hover:bg-af-surface-2 transition-all">
-          <Settings className="w-4 h-4" />Ayarlar
-        </Link>
         <button
           onClick={signOut}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-af-text-secondary hover:text-af-error hover:bg-af-error/10 transition-all"
@@ -166,6 +199,7 @@ export function PanelSidebar() {
       {/* MOBİL HIZLI MENÜ DÜĞMESİ (SOL ÜST YÜZEN BUTON) */}
       <button
         onClick={() => setMobileOpen(true)}
+        aria-label="Panel menüsünü aç"
         className="lg:hidden fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-af-accent text-white shadow-2xl flex items-center justify-center border border-white/20 active:scale-95 transition-all"
         title="Menüyü Aç"
       >

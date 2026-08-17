@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Bell, Search, Plus, CheckCircle, Gift } from "lucide-react"
+import { Bell, Plus, CheckCircle } from "lucide-react"
 import Link from "next/link"
 import { useAuth } from "@/lib/auth-context"
 import { createClient } from "@/lib/supabase/client"
@@ -107,23 +107,13 @@ export function PanelTopbar({ baslik, aciklama }: PanelTopbarProps) {
         {baslik && <h1 className="text-af-text font-bold text-lg leading-none">{baslik}</h1>}
         {(aciklama || galeriAdi) && (
           <p className="text-af-text-disabled text-xs mt-0.5">
-            {galeriAdi ? `Hoş geldiniz, ${galeriAdi}` : aciklama}
+            {aciklama || `Hoş geldiniz, ${galeriAdi}`}
           </p>
         )}
       </div>
 
       {/* Aksiyonlar */}
       <div className="flex items-center gap-3">
-        {/* Arama */}
-        <div className="relative hidden md:flex items-center">
-          <Search className="absolute left-3 w-4 h-4 text-af-text-disabled" />
-          <input
-            type="text"
-            placeholder="Araç ara..."
-            className="bg-af-surface border border-af-border text-af-text-secondary placeholder:text-af-text-disabled text-sm rounded-xl pl-9 pr-4 py-2 w-48 focus:outline-none focus:border-af-accent focus:w-64 transition-all duration-300"
-          />
-        </div>
-
         {/* Hızlı araç ekle */}
         <Link
           href="/panel/araclar/yeni"
