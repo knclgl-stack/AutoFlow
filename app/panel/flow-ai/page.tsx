@@ -938,6 +938,62 @@ function makeDefaultConfig(colorProfile: CarColor, dealerName?: string, dealerLo
   }
 }
 
+async function prepareVehicleImage(file: File): Promise<string> {
+  const sourceUrl = URL.createObjectURL(file)
+
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new Image()
+      element.onload = () => resolve(element)
+      element.onerror = () => reject(new Error("Fotoğraf açılamadı."))
+      element.src = sourceUrl
+    })
+
+    const maxDimension = 1600
+    const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight))
+    const width = Math.max(1, Math.round(image.naturalWidth * scale))
+    const height = Math.max(1, Math.round(image.naturalHeight * scale))
+    const canvas = document.createElement("canvas")
+    canvas.width = width
+    canvas.height = height
+
+    const context = canvas.getContext("2d")
+    if (!context) throw new Error("Fotoğraf hazırlanamadı.")
+
+    context.fillStyle = "#ffffff"
+    context.fillRect(0, 0, width, height)
+    context.drawImage(image, 0, 0, width, height)
+
+    let quality = 0.9
+    let result = canvas.toDataURL("image/jpeg", quality)
+    while (result.length > 3_800_000 && quality > 0.55) {
+      quality -= 0.08
+      result = canvas.toDataURL("image/jpeg", quality)
+    }
+
+    if (result.length > 4_000_000) {
+      throw new Error("Fotoğraf çok büyük. Lütfen daha düşük çözünürlüklü bir fotoğraf seçin.")
+    }
+
+    return result
+  } finally {
+    URL.revokeObjectURL(sourceUrl)
+  }
+}
+
+function imagePayloadFromDataUrl(dataUrl: string) {
+  const separatorIndex = dataUrl.indexOf(",")
+  const metadata = dataUrl.slice(0, separatorIndex)
+  const data = dataUrl.slice(separatorIndex + 1)
+  const mimeType = metadata.match(/^data:(image\/(?:jpeg|png|webp));base64$/)?.[1]
+
+  if (!mimeType || !data) {
+    throw new Error("Fotoğraf formatı desteklenmiyor.")
+  }
+
+  return { mimeType, data }
+}
+
 /* ─────────────────────────────────────────────
    COMPONENT
 ───────────────────────────────────────────── */
@@ -956,6 +1012,7 @@ export default function FlowAiPage() {
 
   /* --- Image & Color State --- */
   const [uploadedImage, setUploadedImage] = useState<string | null>(null)
+  const [visualInstructions, setVisualInstructions] = useState<string[]>([])
   const [detectedColor, setDetectedColor] = useState<CarColor | null>(null)
   const [colorAnalyzing, setColorAnalyzing] = useState(false)
   const [colorSwatchVisible, setColorSwatchVisible] = useState(false)
@@ -1260,37 +1317,43 @@ Kurallar:
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = async () => {
-      const src = reader.result as string
-      setUploadedImage(src)
-      setEnhanceSuccess(false)
-      setEnhancedImage(null)
-      setDetectedColor(null)
-      setShowroomConfig(null)
-      setDownsizedImageBase64(null)
-      setColorSwatchVisible(false)
-      setRevisionMode(false)
-      if (transparentCarUrlState) {
-        URL.revokeObjectURL(transparentCarUrlState)
-        setTransparentCarUrlState(null)
+
+    void (async () => {
+      try {
+        setProcessing(true)
+        setProcessingStep(5)
+        setProcessingLabel("Fotoğraf Flow AI için hazırlanıyor...")
+
+        const src = await prepareVehicleImage(file)
+        setUploadedImage(src)
+        setVisualInstructions([])
+        setEnhanceSuccess(false)
+        setEnhancedImage(null)
+        setDetectedColor(null)
+        setShowroomConfig(null)
+        setDownsizedImageBase64(null)
+        setColorSwatchVisible(false)
+        setRevisionMode(false)
+        if (transparentCarUrlState) {
+          URL.revokeObjectURL(transparentCarUrlState)
+          setTransparentCarUrlState(null)
+        }
+        const userMsg: Mesaj = {
+          id: Date.now() + Math.random(),
+          sender: "user",
+          text: `📸 "${file.name}" yüklendi.`,
+          imagePreview: src,
+          timestamp: now()
+        }
+        setMesajlar(prev => [...prev, userMsg])
+        addAiMsg("Fotoğraf hazır! İstediğiniz sahneyi doğal dille yazın. Örneğin: “Aracı modern, aydınlık bir showroomda göster; yansımaları düzelt.” Araç kimliği ve ayrıntıları korunacaktır.")
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Fotoğraf hazırlanamadı."
+        addAiMsg(`⚠️ ${message}`)
+      } finally {
+        setProcessing(false)
       }
-      const userMsg: Mesaj = {
-        id: Date.now() + Math.random(),
-        sender: "user",
-        text: `📸 "${file.name}" yüklendi.`,
-        imagePreview: src,
-        timestamp: now()
-      }
-      setMesajlar(prev => [...prev, userMsg])
-      addAiMsg("Fotoğraf başarıyla alındı! Şimdi araca uygulamak istediğiniz stüdyo stilini veya arka plan detaylarını yazın (Örn: 'neon sarı stüdyo', 'siyah zeminli beyaz stüdyo') ve gönderin.")
-      
-      // Renk analizini ve ön hazırlığı hemen yap (Gemini ve stüdyo birleştirmeyi başlatma!)
-      setTimeout(() => {
-        extractColorsAndPrep(src)
-      }, 100)
-    }
-    reader.readAsDataURL(file)
+    })()
   }
 
 
@@ -1486,6 +1549,90 @@ JSON Formatı:
     }
   }
 
+  const generateVehiclePhoto = async (prompt: string, isRevision: boolean): Promise<boolean> => {
+    if (!uploadedImage) return false
+
+    const instructionChain = isRevision
+      ? [...visualInstructions, prompt].slice(-6)
+      : [prompt]
+    const completePrompt = instructionChain.length === 1
+      ? instructionChain[0]
+      : instructionChain
+          .map((instruction, index) => `${index + 1}. ${instruction}${index === instructionChain.length - 1 ? " (en son talep; çelişirse önceliklidir)" : ""}`)
+          .join("\n")
+
+    if (isRevision) {
+      setMesajlar(prev => [
+        ...prev,
+        { id: Date.now() + Math.random(), sender: "user", text: prompt, timestamp: now() },
+      ])
+    }
+
+    setProcessing(true)
+    setProcessingStep(15)
+    setProcessingLabel(isRevision
+      ? "Yeni talep araca dokunmadan uygulanıyor..."
+      : "Araç ayrıntıları kilitleniyor...")
+
+    try {
+      const image = imagePayloadFromDataUrl(uploadedImage)
+      setProcessingStep(40)
+      setProcessingLabel("Arka plan, ışık ve yansımalar Flow AI ile düzenleniyor...")
+
+      const response = await fetch("/api/flow-ai/image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: completePrompt, image }),
+      })
+      const data = await response.json()
+
+      if (data.quota) {
+        setAiQuota((current) => current
+          ? { ...current, used: data.quota.used, limit: data.quota.limit }
+          : null)
+      }
+      if (!response.ok || data.error) {
+        throw new Error(data.error || "Görsel düzenlenemedi.")
+      }
+      if (!data.image?.data || !data.image?.mimeType) {
+        throw new Error("Flow AI geçerli bir görsel döndürmedi.")
+      }
+
+      setProcessingStep(90)
+      setProcessingLabel("Son kalite kontrolleri yapılıyor...")
+
+      const generatedImage = `data:${data.image.mimeType};base64,${data.image.data}`
+      setEnhancedImage(generatedImage)
+      setVisualInstructions(instructionChain)
+      setEnhanceSuccess(true)
+      setRevisionMode(true)
+      setSliderPos(50)
+      setProcessingStep(100)
+      setProcessingLabel("Hazır!")
+
+      setMesajlar(prev => [
+        ...prev,
+        {
+          id: Date.now() + Math.random(),
+          sender: "ai",
+          text: isRevision
+            ? "✅ Yeni talebinizi uyguladım. Araç kimliği korunarak sahne, ışık ve yansımalar yeniden düzenlendi."
+            : "✅ Fotoğraf hazır. Araç kimliği korunarak istediğiniz ortam, ışık ve gerçekçi yansımalar oluşturuldu. İsterseniz yeni bir değişiklik daha yazabilirsiniz.",
+          imagePreview: generatedImage,
+          timestamp: now(),
+        },
+      ])
+
+      return true
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Görsel düzenlenemedi."
+      addAiMsg(`⚠️ ${message}`)
+      return true
+    } finally {
+      setProcessing(false)
+    }
+  }
+
   /* ── Chat Gönder — Gerçek Gemini API ── */
   const sendMessage = async (text: string) => {
     if (!text.trim() || isTyping) return
@@ -1500,13 +1647,13 @@ JSON Formatı:
       const userMsg: Mesaj = { id: Date.now() + Math.random(), sender: "user", text, timestamp: now() }
       setMesajlar(prev => [...prev, userMsg])
       setInputText("")
-      await analyzeAndEnhanceImage(uploadedImage, text)
+      await generateVehiclePhoto(text, false)
       return
     }
 
-    // Revizyon modu aktifse ve geçerli bir revizyon promptu ise işle
-    if (enhanceSuccess && transparentCarUrlState) {
-      const isRevised = await processRevision(text)
+    // Sonraki tüm komutları gerçek görsel revizyonu olarak uygula.
+    if (enhanceSuccess && uploadedImage) {
+      const isRevised = await generateVehiclePhoto(text, true)
       if (isRevised) {
         setInputText("")
         return
@@ -1572,7 +1719,7 @@ JSON Formatı:
     },
     {
       title: "Flow AI hazırlasın",
-      description: "Arka plan ve ışık otomatik işlensin.",
+      description: "Araç korunarak sahne ve ışık işlensin.",
       status: enhanceSuccess ? "complete" : processing || stilIstegiVar ? "current" : "upcoming",
     },
     {
@@ -1709,7 +1856,7 @@ JSON Formatı:
                 </div>
                 <h4 className="font-bold text-white text-sm mb-1.5">Araç Fotoğrafı Yükleyin</h4>
                 <p className="text-xs text-af-text-disabled max-w-sm leading-relaxed">
-                  Arka planı otomatik temizlenecek araba görselinizi buraya bırakın veya tıklayın.
+                  Araç korunur; arka plan, ışık ve yansımalar talebinize göre düzenlenir.
                 </p>
                 <p className="text-[10px] text-af-text-disabled/60 mt-3">Desteklenen formatlar: PNG, JPG, WEBP</p>
               </div>
@@ -1802,11 +1949,11 @@ JSON Formatı:
           {enhanceSuccess && (
             <div className="px-4 py-2 bg-af-surface border-t border-af-border flex gap-1.5 overflow-x-auto flex-shrink-0 scrollbar-none">
               {[
-                "Işıkları neon mavi yap",
-                "Arka planı koyu stüdyo yap",
-                "Neon şeritleri kapat",
-                "Sarı aydınlatma ekle",
-                "Spotlight ışığını kapat"
+                "Modern aydınlık showroomda göster",
+                "Lüks siyah showroomda göster",
+                "Gün batımında sahil yolunda göster",
+                "Temiz beyaz stüdyo fonu yap",
+                "Işığı ve yansımaları doğal biçimde düzelt"
               ].map(q => (
                 <button
                   key={q}
@@ -1832,7 +1979,7 @@ JSON Formatı:
                   ? "Başlamak için önce fotoğraf yükleyin..." 
                   : isTyping || processing
                     ? "İşlem sürüyor, lütfen bekleyin..."
-                    : "Görsel üzerinde değiştirmek istediğiniz detayları yazın (Örn: 'ışıkları yeşil yap')..."
+                    : "İstediğiniz ortamı yazın (Örn: 'aracı modern showroomda göster')..."
               }
               className="flex-1 bg-af-surface-2 border border-af-border text-af-text placeholder:text-af-text-disabled rounded-2xl px-4 py-3 text-xs focus:outline-none focus:border-af-accent transition-colors disabled:opacity-50"
             />
